@@ -227,7 +227,7 @@ def smooth(points):
 
 def streamgraph(stream):
     """Composition by generation. Height is constant and each generation is
-    normalised to its own total — absolute widths made the later generations
+    normalised to its own total, because absolute widths made the later generations
     (n=28, n=12, n=3) invisible, which is where the whole westward story is.
     Cohort size is carried by the printed n above each column instead."""
     gens = [g for g in sorted(stream, reverse=True) if 2 <= g <= 14
@@ -288,8 +288,8 @@ def streamgraph(stream):
       <text x="{W - PAD_R}" y="{H - 4}" text-anchor="end" class="ax-t">most recent</text>
     </svg>
     <figcaption>Where each generation died, as a share of that generation. The figure
-    above each column is how many ancestors it rests on — 497 at the eighth generation,
-    three at the second — so the right-hand end is thinner evidence, not a thinner family.
+    above each column is how many ancestors it rests on: 497 at the eighth generation,
+    three at the second, so the right-hand end is thinner evidence, not a thinner family.
     Read left to right: New England fills the band for six generations, then goes in a
     single step. The two dashed rules are the wars: generation 7 fought the Revolution,
     generation 4 was of age for the Civil War.</figcaption>
@@ -577,7 +577,7 @@ def crossings_chart(counts):
       {''.join(seg)}
     </svg>
     <figcaption>Above, when each crossing happened. Below, the same five as a share of all
-    {total} people who made one. The two long silences — 1664 to 1709, and 1775 to 1840 —
+    {total} people who made one. The two long silences, 1664 to 1709 and 1775 to 1840,
     are as much the story as the arrivals.</figcaption>
   </figure>"""
 
