@@ -524,3 +524,8 @@ figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
   font-family: var(--font-heading); font-weight: 400; font-size: 20px;
   line-height: 1.15; letter-spacing: -0.02em; margin: 1.7em 0 .6em;
 }
+
+/* A portrait set into running prose. Clears on narrow viewports. */
+@media (max-width: 760px) {
+  .story figure.plate-fig[style*="float"] { float: none !important; margin-left: 0 !important; max-width: 220px; }
+}
