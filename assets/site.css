@@ -112,17 +112,19 @@ html { scroll-behavior: smooth; }
 
 /* — hero — */
 #top { padding-top: clamp(72px, 15vh, 168px); }
+/* The headline spans the full measure so it sets on two lines; the dek and the
+   plate share the row beneath it. Sized so the longer line (33 characters) fits
+   the 1080px measure without a third wrap. */
+.display {
+  font-family: var(--font-heading); font-weight: 400;
+  font-size: clamp(30px, 5.1vw, 67px); line-height: 1.04;
+  letter-spacing: -0.042em; margin: 0 0 clamp(28px, 4vh, 52px);
+  margin-left: -0.042em;
+}
 .hero-grid {
   display: grid; grid-template-columns: minmax(0, 1fr) 300px;
   gap: clamp(32px, 5vw, 72px); align-items: end;
 }
-.display {
-  font-family: var(--font-heading); font-weight: 400;
-  font-size: clamp(44px, 6.2vw, 86px); line-height: 1.02;
-  letter-spacing: -0.042em; margin: 0 0 var(--space-4); margin-left: -0.042em;
-  text-wrap: balance;
-}
-.display .line2 { display: block; }
 .dek {
   font-size: 17px; line-height: 30px; color: var(--ink-82);
   max-width: 46ch; margin: 0 0 var(--space-4);
@@ -420,3 +422,56 @@ h3 .yr {
 .story { font-size: 15.5px; line-height: 28px; color: var(--ink-82); max-width: 68ch; }
 .story p { text-align: justify; hyphens: auto; }
 @media (max-width: 760px) { .story p { text-align: left; hyphens: manual; } }
+
+/* ═══════════════ westward drift chart ═══════════════
+   Stacked share of each generation's American deaths by region. Ink drains
+   out of the bar and accent fills it as the family moves west. */
+.drift { margin: var(--space-8) 0; }
+.drift-legend {
+  display: flex; flex-wrap: wrap; gap: var(--space-4);
+  font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--ink-70); margin-bottom: var(--space-4);
+}
+.drift-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.drift-legend i { width: 11px; height: 11px; flex: none; border-radius: 1px; }
+.drift-row {
+  display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 3.2em;
+  gap: var(--space-3); align-items: center; padding: 3px 0;
+  font-size: 11px; font-feature-settings: 'tnum' 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.drift-gen { text-align: right; color: var(--ink-50); }
+.drift-n { text-align: right; color: var(--ink-50); }
+.drift-track { display: flex; height: 13px; background: var(--color-neutral-200); overflow: hidden; }
+.drift-track span { display: block; height: 100%; }
+.drift-break {
+  grid-column: 1 / -1; display: grid;
+  grid-template-columns: 2.6em minmax(0, 1fr) 3.2em; gap: var(--space-3);
+  padding: 2px 0;
+}
+.drift-break span:nth-child(2) {
+  border-top: 1px solid var(--color-accent); position: relative;
+}
+.drift-break em {
+  position: absolute; top: -0.55em; right: 0; background: var(--color-bg);
+  padding-left: 8px; font-style: normal; font-size: 10px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--color-accent-700);
+}
+
+/* — frontier waypoints — */
+.waypoints { list-style: none; margin: var(--space-8) 0 0; padding: 0; }
+.waypoints li {
+  display: grid; grid-template-columns: 4.4em minmax(0, 1fr);
+  gap: var(--space-4); padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-divider); font-size: 14px; line-height: 23px;
+}
+.waypoints li:last-child { border-bottom: 1px solid var(--color-divider); }
+.waypoints b {
+  color: var(--color-accent-700); font-weight: 400;
+  font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums lining-nums;
+}
+.waypoints .place { color: var(--color-text); }
+.waypoints .what { color: var(--ink-70); }
+@media (max-width: 620px) {
+  .waypoints li { grid-template-columns: 1fr; gap: 2px; }
+}

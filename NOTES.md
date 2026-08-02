@@ -19,6 +19,21 @@ actual record contains **five** distinct crossings, on different dates:
 The structural pattern the spec defines — colophon divider followed by epoch
 body, ghost roman numeral, index group — extends to five without modification.
 
+### 1b. A second spine: the inland migration
+
+The spec organises the page around arrivals only. The record does not support that
+reading — crossing the Atlantic was one event, and settling the continent took
+another 230 years. The page now carries both:
+
+- **They crossed once. Then they walked.** — a stacked-bar chart of each
+  generation's American deaths by region, plus a nine-stop frontier ladder.
+  The chart is the argument: New England holds 85–95% for six generations, then
+  falls to 39% in the single step between the eighth generation and the seventh.
+- **Paid in western acres** (Ohio, 1788) — promoted out of a subhead inside the
+  patriots section, because it is the hinge that break depends on.
+- **The Republic of Vermont** (1750s–1791) — the northern frontier leg, and the
+  Gores' waypoint between Connecticut and Iowa.
+
 ### 2. `<image-slot>` replaced by real `<img>`
 
 Spec §8 mounts every photograph through `<image-slot>`, whose stated purpose is
@@ -49,6 +64,15 @@ Spec §5 permits exactly one filled accent moment on the light ground: the `1743
 stat numeral. The equivalent figure here is the first landing, `1620`. The
 `-0.129em` optical inset the spec specifies for a display numeral leading with
 `1` still applies.
+
+### 5. The ~200-word epoch budget was dropped
+
+Spec §10 sets "roughly 200 words per epoch; one paragraph per figure." That budget
+was written for placeholder copy. Applied to the real record it summarised away
+the material the page exists for — the Mayflower roster, the Great Swamp Fight,
+Mary Esty's petition, the violin. The page runs to about 6,200 words.
+
+The spec's structural rules are all still honoured; only the word count is not.
 
 # Additions
 
