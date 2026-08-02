@@ -10,9 +10,9 @@ actual record contains **five** distinct crossings, on different dates:
 
 | № | Crossing | Years | People |
 | --- | --- | --- | --- |
-| I | The Great Migration | 1620–1640 | 472 |
-| II | New Netherland | 1624–1664 | 16 |
-| III | The Palatines | 1709–1760 | 21 |
+| I | The Great Migration | 1620–1640 | 488 |
+| II | New Netherland | 1624–1664 | 27 |
+| III | The Palatines | 1709–1760 | 25 |
 | IV | The Ulster Scots | 1718–1775 | 12 |
 | V | The Industrial Crossing | 1840–1870 | 8 |
 
@@ -80,3 +80,7 @@ The spec's structural rules are all still honoured; only the word count is not.
 - The head gates the scroll-reveal's hidden state on `prefers-reduced-motion`
   and `IntersectionObserver` support before first paint, so the page never
   paints content hidden that it cannot then reveal.
+
+## Where the crossing counts come from
+
+The five crossing totals and the `Crossed an ocean` headline are the `crossing_of` classification in `generate-charts.py`, not hand counts. An immigrant is someone born outside America after 1500 who died in America after 1607; the crossing is their birth nation, except that a birth from 1800 is the Industrial Crossing whatever the nation. As of the completed hydration they sum exactly to the headline (488+27+25+12+8 = 560) with nobody unclassified. If they stop summing, the data moved and the page is stale.

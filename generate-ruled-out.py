@@ -17,7 +17,7 @@ import sys
 
 DB = os.path.expanduser("~/.local/share/familysearch-pp-cli/data.db")
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ruled-out.html")
-ASSET_V = "v=39"
+ASSET_V = "v=40"
 
 # Section order, and the editorial lead that introduces each. The entries
 # themselves are generated.
@@ -64,12 +64,29 @@ ROLE_WORD = {"supports": "Supported by", "refutes": "Ruled out by",
              "conflicts": "In conflict", "context": "Context"}
 
 
+def connect(db_path):
+    """Read-only if possible, plain read-write if not.
+
+    A WAL database needs a -shm file, and SQLite cannot create one through a
+    mode=ro handle. After the hydrator exits cleanly it checkpoints and removes
+    -shm, so mode=ro then fails with "unable to open database file" even though
+    the file is perfectly readable. Fall back rather than die; nothing here
+    writes.
+    """
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        con.execute("SELECT 1 FROM sqlite_master LIMIT 1")
+        return con
+    except sqlite3.OperationalError:
+        return sqlite3.connect(db_path)
+
+
 def e(s):
     return html.escape(s, quote=False) if s else ""
 
 
 def load():
-    db = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    db = connect(DB)
     db.row_factory = sqlite3.Row
     findings = {}
     for r in db.execute(

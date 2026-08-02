@@ -47,6 +47,23 @@ CROSSINGS = [
 ]
 
 
+def connect(db_path):
+    """Read-only if possible, plain read-write if not.
+
+    A WAL database needs a -shm file, and SQLite cannot create one through a
+    mode=ro handle. After the hydrator exits cleanly it checkpoints and removes
+    -shm, so mode=ro then fails with "unable to open database file" even though
+    the file is perfectly readable. Fall back rather than die; nothing here
+    writes.
+    """
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        con.execute("SELECT 1 FROM sqlite_master LIMIT 1")
+        return con
+    except sqlite3.OperationalError:
+        return sqlite3.connect(db_path)
+
+
 def region_of(place):
     for name, _, towns in REGIONS:
         for t in towns:
@@ -92,7 +109,7 @@ def year(*vals):
 
 
 def load():
-    db = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    db = connect(DB)
     db.row_factory = sqlite3.Row
     rows = db.execute(
         "SELECT generation, birth_place, death_place, birth_date, death_date, "
@@ -150,7 +167,7 @@ def load():
                      if any(k in place for k in keys)), "Elsewhere")
         flows[(label, land)] += 1
     # ── ancestral lines, tagged by crossing ────────────────────────────────
-    db = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    db = connect(DB)
     db.row_factory = sqlite3.Row
     gen = {r["pid"]: r["generation"] for r in db.execute(
         "SELECT pid, generation FROM fs_persons WHERE deleted=0")}
