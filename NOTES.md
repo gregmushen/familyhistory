@@ -83,7 +83,7 @@ The spec's structural rules are all still honoured; only the word count is not.
 
 ## Where the crossing counts come from
 
-The five crossing totals and the `Crossed an ocean` headline are the `crossing_of` classification in `generate-charts.py`, not hand counts. An immigrant is someone born outside America after 1500 who died in America after 1607; the crossing is their birth nation, except that a birth from 1800 is the Industrial Crossing whatever the nation. As of the completed hydration they sum exactly to the headline (488+27+25+12+8 = 560) with nobody unclassified. If they stop summing, the data moved and the page is stale.
+The five crossing totals and the `Crossed an ocean` headline are the `crossing_of` classification in `generate-charts.py`, not hand counts. An immigrant is someone born outside America after 1500 who died in America after 1607; the crossing is their birth nation, except that a birth from 1800 is the Industrial Crossing whatever the nation. As of the completed hydration they sum exactly to the headline (488+27+25+12+8 = 560) with nobody unclassified. That invariant is now an assertion inside `generate-charts.py` rather than a note here, so the script refuses to write a page whose parts disagree with its total. It earned its place immediately: the crossings figure had been drawing its stacked bar from an older, narrower grouping (England and Wales only, born before 1700) that summed to 557, so the page carried two answers to the same question and computed the Great Migration's share against the wrong denominator.
 
 ## Verifying a deploy
 
