@@ -249,9 +249,8 @@ ORIGINS = [
     ("Germany", "var(--color-accent-600)", ("Germany",)),
     ("Ulster", "var(--color-accent-500)", ("Ulster",)),
     ("Ireland", "var(--color-neutral-500)", ("Ireland",)),
-    ("Scotland", "var(--color-neutral-400)", ("Scotland",)),
-    ("Wales &amp; others", "var(--color-neutral-300)",
-     ("Wales", "France", "Switzerland", "Bohemia", "Scandinavia")),
+    ("Scotland, Wales &amp; others", "var(--color-neutral-400)",
+     ("Scotland", "Wales", "France", "Switzerland", "Bohemia", "Scandinavia")),
 ]
 
 LANDINGS = [
@@ -268,35 +267,41 @@ LANDINGS = [
 ]
 
 
-def sankey(flows, exclude=()):
-    """Origin against landing place. England is 86% of all crossings, which
-    flattens every other ribbon into an unreadable stack — so this is drawn for
-    the minority crossings only, at their own scale. England's own flow is
-    stated in the prose, where it needs no diagram."""
-    flows = {k: v for k, v in flows.items() if k[0] not in exclude}
-    W, H = 1000, 470
-    TOP, BOT, NODE_W = 40, 30, 11
-    LX, RX = 170, W - 210
+def sankey(flows):
+    """Origin against landing place, everyone included.
+
+    An earlier version dropped England for legibility, which was wrong twice
+    over: it hid the biggest fact on the chart, and any reader's first question
+    is where England went. Instead the canvas is tall enough that England's
+    86% can be a slab and the six minority origins still get separated nodes
+    and readable labels. Gaps are fixed in pixels rather than proportional, so
+    a three-person origin is still a labelled node."""
+    W = 1000
+    TOP, BOT, NODE_W, GAP = 42, 34, 12, 30
+    LX, RX = 176, W - 216
     total = sum(flows.values())
-    usable = H - TOP - BOT - 26 * max(len(ORIGINS) - len(exclude) - 1, 1) * 0.5
 
     src_tot = {o: sum(n for (a, _), n in flows.items() if a == o) for o, _, _ in ORIGINS}
     dst_tot = {d: sum(n for (_, b), n in flows.items() if b == d) for d, _ in LANDINGS}
     src = [o for o in ORIGINS if src_tot[o[0]]]
     dst = [d for d in LANDINGS if dst_tot[d[0]]]
 
-    def stack(items, totals, key):
+    # A fixed flow height, with generous fixed gaps. Scaling the canvas until the
+    # smallest node was tall enough produced a 3,000px figure; separation between
+    # labels comes from the gap, not from the node height.
+    usable = 760.0
+    H = int(usable + TOP + BOT + GAP * (max(len(src), len(dst)) - 1))
+
+    def stack(items, totals):
         y, out = TOP, {}
-        gap = (H - TOP - BOT - usable) / max(len(items) - 1, 1)
         for it in items:
-            k = it[key]
+            k = it[0]
             h = usable * totals[k] / total
             out[k] = [y, h, y]
-            y += h + gap
+            y += h + GAP
         return out
 
-    L = stack(src, src_tot, 0)
-    R = stack(dst, dst_tot, 0)
+    L, R = stack(src, src_tot), stack(dst, dst_tot)
 
     ribbons = []
     for name, colour, _ in ORIGINS:
@@ -314,40 +319,44 @@ def sankey(flows, exclude=()):
                 f'C {cx} {y0:.1f} {cx} {y1:.1f} {RX} {y1:.1f} '
                 f'L {RX} {y1 + h:.1f} '
                 f'C {cx} {y1 + h:.1f} {cx} {y0 + h:.1f} {LX + NODE_W} {y0 + h:.1f} Z" '
-                f'fill="{colour}" opacity="0.42"/>')
+                f'fill="{colour}" opacity="0.44"/>')
 
     nodes = []
     for name, colour, _ in src:
         y, h, _ = L[name]
+        ty = y + h / 2
         nodes.append(
-            f'<rect x="{LX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 1.5):.1f}" fill="{colour}"/>'
-            f'<text x="{LX - 10}" y="{y + h / 2 + 4:.1f}" text-anchor="end" class="sk-lab">{name}</text>'
-            f'<text x="{LX - 10}" y="{y + h / 2 + 17:.1f}" text-anchor="end" class="sk-n">{src_tot[name]}</text>')
+            f'<rect x="{LX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 2):.1f}" fill="{colour}"/>'
+            f'<text x="{LX - 12}" y="{ty:.1f}" text-anchor="end" class="sk-lab">{name}</text>'
+            f'<text x="{LX - 12}" y="{ty + 14:.1f}" text-anchor="end" class="sk-n">'
+            f'{src_tot[name]} · {100 * src_tot[name] / total:.0f}%</text>')
     for name, _ in dst:
         y, h, _ = R[name]
+        ty = y + h / 2
         nodes.append(
-            f'<rect x="{RX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 1.5):.1f}" '
+            f'<rect x="{RX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 2):.1f}" '
             f'fill="var(--color-neutral-700)"/>'
-            f'<text x="{RX + NODE_W + 10}" y="{y + h / 2 + 4:.1f}" class="sk-lab">{name}</text>'
-            f'<text x="{RX + NODE_W + 10}" y="{y + h / 2 + 17:.1f}" class="sk-n">{dst_tot[name]}</text>')
+            f'<text x="{RX + NODE_W + 12}" y="{ty:.1f}" class="sk-lab">{name}</text>'
+            f'<text x="{RX + NODE_W + 12}" y="{ty + 14:.1f}" class="sk-n">{dst_tot[name]}</text>')
 
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="xMidYMid meet"
-         aria-label="Flow diagram of the {total} immigrant ancestors who were not born in England, from country of birth on the left to the colony they died in on the right. The Dutch go overwhelmingly to New York, the Germans to New York and Pennsylvania, the Ulster Scots and Irish to Pennsylvania, and the ribbons barely cross.">
-      <text x="{LX + NODE_W}" y="18" text-anchor="end" class="ax-t">born</text>
-      <text x="{RX}" y="18" class="ax-t">died</text>
+         aria-label="Flow diagram of all {total} immigrant ancestors from country of birth on the left to the colony they died in on the right. England is 86 per cent of the total and flows overwhelmingly into Massachusetts Bay and Plymouth. Below it the minority origins run almost straight across without crossing: the Dutch to New York, the Germans to New York and Pennsylvania, the Ulster Scots and Irish to Pennsylvania.">
+      <text x="{LX + NODE_W}" y="20" text-anchor="end" class="ax-t">born</text>
+      <text x="{RX}" y="20" class="ax-t">died</text>
       {''.join(ribbons)}
       {''.join(nodes)}
     </svg>
-    <figcaption>The {total} crossers who were <em>not</em> English, from the country they
-    were born in to the colony they died in. England is left out because at 483 people it
-    swamps everything else, and its answer is not in doubt: 374 to Massachusetts Bay, 51 to
-    Plymouth, 29 to Connecticut. What is left is the tell — the ribbons barely cross. The
-    Dutch go to New York, the Germans to New York and Pennsylvania, the Ulster Scots and
-    Irish to Pennsylvania. Five migrations that shared a continent and did not mix.<br><br>
-    The exception is the one to look at: the Netherlands ribbon reaching across to Plymouth
-    is the <a href="#mayflower">Leiden congregation</a> — English Separatists whose children
-    were born in Holland during the exile, and who are Dutch only by birthplace.</figcaption>
+    <figcaption>All {total} ancestors who crossed an ocean, from the country they were born
+    in to the colony they died in. Two things at once. <b>England is 86% of everything</b>
+    — that slab at the top is the Great Migration, and it pours almost entirely into
+    Massachusetts Bay and Plymouth. And beneath it the ribbons barely cross: the Dutch to
+    New York, the Germans to New York and Pennsylvania, the Ulster Scots and Irish to
+    Pennsylvania. Five migrations that shared a continent and did not mix.<br><br>
+    The one ribbon that does cross is the interesting one — the Netherlands reaching over
+    to Plymouth is the <a href="#mayflower">Leiden congregation</a>, English Separatists
+    whose children were born in Holland during the exile and who are Dutch only by
+    birthplace.</figcaption>
   </figure>"""
 
 
@@ -424,7 +433,7 @@ def main():
     page = open(PAGE, encoding="utf-8").read()
     for marker, svg in (("stream", streamgraph(stream)),
                         ("bars", bars(stream)),
-                        ("sankey", sankey(flows, exclude=("England",))),
+                        ("sankey", sankey(flows)),
                         ("crossings", crossings_chart(counts))):
         pat = re.compile(f"(<!-- CHART:{marker} -->).*?(<!-- /CHART:{marker} -->)", re.S)
         if not pat.search(page):
