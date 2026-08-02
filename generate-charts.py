@@ -124,7 +124,17 @@ def load():
                       and born(r) < 1800),
         "late": sum(1 for r in imm if born(r) >= 1800),
     }
-    return stream, counts, len(imm)
+    flows = collections.Counter()
+    for r in imm:
+        o = nation_of(r["birth_place"])
+        label = next((name for name, _, keys in ORIGINS if o in keys), None)
+        if not label:
+            continue
+        place = r["death_place"] or ""
+        land = next((name for name, keys in LANDINGS
+                     if any(k in place for k in keys)), "Elsewhere")
+        flows[(label, land)] += 1
+    return stream, counts, len(imm), flows
 
 
 def smooth(points):
@@ -229,6 +239,114 @@ def bars(stream):
             + "\n".join(rows) + "\n  </div>")
 
 
+ORIGINS = [
+    ("England", "var(--color-neutral-800)", ("England",)),
+    ("Netherlands", "var(--color-accent-300)", ("Netherlands",)),
+    ("Germany", "var(--color-accent-600)", ("Germany",)),
+    ("Ulster", "var(--color-accent-500)", ("Ulster",)),
+    ("Ireland", "var(--color-neutral-500)", ("Ireland",)),
+    ("Scotland", "var(--color-neutral-400)", ("Scotland",)),
+    ("Wales &amp; others", "var(--color-neutral-300)",
+     ("Wales", "France", "Switzerland", "Bohemia", "Scandinavia")),
+]
+
+LANDINGS = [
+    ("Massachusetts Bay", ("Massachusetts Bay", "Suffolk, Massachusetts",
+                           "Essex, Massachusetts", "Middlesex, Massachusetts",
+                           "Norfolk, Massachusetts", "Massachusetts")),
+    ("Plymouth Colony", ("Plymouth Colony", "Plymouth, Plymouth", "Barnstable",
+                         "Bristol, Plymouth")),
+    ("Connecticut", ("Connecticut",)),
+    ("New York &amp; New Netherland", ("New York", "New Netherland")),
+    ("Pennsylvania", ("Pennsylvania",)),
+    ("Rhode Island", ("Rhode Island",)),
+    ("Elsewhere", ()),
+]
+
+
+def sankey(flows, exclude=()):
+    """Origin against landing place. England is 86% of all crossings, which
+    flattens every other ribbon into an unreadable stack — so this is drawn for
+    the minority crossings only, at their own scale. England's own flow is
+    stated in the prose, where it needs no diagram."""
+    flows = {k: v for k, v in flows.items() if k[0] not in exclude}
+    W, H = 1000, 470
+    TOP, BOT, NODE_W = 40, 30, 11
+    LX, RX = 170, W - 210
+    total = sum(flows.values())
+    usable = H - TOP - BOT - 26 * max(len(ORIGINS) - len(exclude) - 1, 1) * 0.5
+
+    src_tot = {o: sum(n for (a, _), n in flows.items() if a == o) for o, _, _ in ORIGINS}
+    dst_tot = {d: sum(n for (_, b), n in flows.items() if b == d) for d, _ in LANDINGS}
+    src = [o for o in ORIGINS if src_tot[o[0]]]
+    dst = [d for d in LANDINGS if dst_tot[d[0]]]
+
+    def stack(items, totals, key):
+        y, out = TOP, {}
+        gap = (H - TOP - BOT - usable) / max(len(items) - 1, 1)
+        for it in items:
+            k = it[key]
+            h = usable * totals[k] / total
+            out[k] = [y, h, y]
+            y += h + gap
+        return out
+
+    L = stack(src, src_tot, 0)
+    R = stack(dst, dst_tot, 0)
+
+    ribbons = []
+    for name, colour, _ in ORIGINS:
+        for dname, _ in LANDINGS:
+            n = flows.get((name, dname), 0)
+            if not n:
+                continue
+            h = usable * n / total
+            y0, y1 = L[name][2], R[dname][2]
+            L[name][2] += h
+            R[dname][2] += h
+            cx = (LX + NODE_W + RX) / 2
+            ribbons.append(
+                f'<path d="M {LX + NODE_W} {y0:.1f} '
+                f'C {cx} {y0:.1f} {cx} {y1:.1f} {RX} {y1:.1f} '
+                f'L {RX} {y1 + h:.1f} '
+                f'C {cx} {y1 + h:.1f} {cx} {y0 + h:.1f} {LX + NODE_W} {y0 + h:.1f} Z" '
+                f'fill="{colour}" opacity="0.42"/>')
+
+    nodes = []
+    for name, colour, _ in src:
+        y, h, _ = L[name]
+        nodes.append(
+            f'<rect x="{LX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 1.5):.1f}" fill="{colour}"/>'
+            f'<text x="{LX - 10}" y="{y + h / 2 + 4:.1f}" text-anchor="end" class="sk-lab">{name}</text>'
+            f'<text x="{LX - 10}" y="{y + h / 2 + 17:.1f}" text-anchor="end" class="sk-n">{src_tot[name]}</text>')
+    for name, _ in dst:
+        y, h, _ = R[name]
+        nodes.append(
+            f'<rect x="{RX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 1.5):.1f}" '
+            f'fill="var(--color-neutral-700)"/>'
+            f'<text x="{RX + NODE_W + 10}" y="{y + h / 2 + 4:.1f}" class="sk-lab">{name}</text>'
+            f'<text x="{RX + NODE_W + 10}" y="{y + h / 2 + 17:.1f}" class="sk-n">{dst_tot[name]}</text>')
+
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="Flow diagram of the {total} immigrant ancestors who were not born in England, from country of birth on the left to the colony they died in on the right. The Dutch go overwhelmingly to New York, the Germans to New York and Pennsylvania, the Ulster Scots and Irish to Pennsylvania, and the ribbons barely cross.">
+      <text x="{LX + NODE_W}" y="18" text-anchor="end" class="ax-t">born</text>
+      <text x="{RX}" y="18" class="ax-t">died</text>
+      {''.join(ribbons)}
+      {''.join(nodes)}
+    </svg>
+    <figcaption>The {total} crossers who were <em>not</em> English, from the country they
+    were born in to the colony they died in. England is left out because at 483 people it
+    swamps everything else, and its answer is not in doubt: 374 to Massachusetts Bay, 51 to
+    Plymouth, 29 to Connecticut. What is left is the tell — the ribbons barely cross. The
+    Dutch go to New York, the Germans to New York and Pennsylvania, the Ulster Scots and
+    Irish to Pennsylvania. Five migrations that shared a continent and did not mix.<br><br>
+    The exception is the one to look at: the Netherlands ribbon reaching across to Plymouth
+    is the <a href="#mayflower">Leiden congregation</a> — English Separatists whose children
+    were born in Holland during the exile, and who are Dutch only by birthplace.</figcaption>
+  </figure>"""
+
+
 def crossings_chart(counts):
     """Two encodings, kept apart: when each crossing happened, and how big it
     was. The year range lives in the title line so nothing collides with the
@@ -298,10 +416,11 @@ def crossings_chart(counts):
 
 
 def main():
-    stream, counts, total = load()
+    stream, counts, total, flows = load()
     page = open(PAGE, encoding="utf-8").read()
     for marker, svg in (("stream", streamgraph(stream)),
                         ("bars", bars(stream)),
+                        ("sankey", sankey(flows, exclude=("England",))),
                         ("crossings", crossings_chart(counts))):
         pat = re.compile(f"(<!-- CHART:{marker} -->).*?(<!-- /CHART:{marker} -->)", re.S)
         if not pat.search(page):

@@ -600,3 +600,10 @@ figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
   font-family: var(--font-body); font-size: 10px; fill: var(--color-bg);
   letter-spacing: 0.08em; text-transform: uppercase;
 }
+.chart-fig .sk-lab {
+  font-family: var(--font-body); font-size: 12.5px; fill: var(--color-text);
+}
+.chart-fig .sk-n {
+  font-family: var(--font-body); font-size: 11px; fill: var(--ink-50);
+  font-variant-numeric: tabular-nums lining-nums;
+}
