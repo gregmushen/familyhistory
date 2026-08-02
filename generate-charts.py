@@ -20,6 +20,7 @@ import sqlite3
 import sys
 
 DB = os.path.expanduser("~/.local/share/familysearch-pp-cli/data.db")
+ROOT_COUPLE = "PXFK-VML_"
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
 
 REGIONS = [
@@ -124,6 +125,20 @@ def load():
                       and born(r) < 1800),
         "late": sum(1 for r in imm if born(r) >= 1800),
     }
+    def crossing_of(r):
+        o = nation_of(r["birth_place"])
+        if not o or not in_america(r["death_place"]):
+            return None
+        if (year(r["death_date"], "") or 9999) < 1607:
+            return None
+        b = year(r["birth_date"], r["lifespan"]) or 0
+        if b >= 1800:
+            return "V · Industrial"
+        return {"England": "I · Great Migration", "Wales": "I · Great Migration",
+                "Scotland": "I · Great Migration",
+                "Netherlands": "II · New Netherland", "Germany": "III · Palatines",
+                "Ulster": "IV · Ulster Scots", "Ireland": "IV · Ulster Scots"}.get(o)
+
     flows = collections.Counter()
     for r in imm:
         o = nation_of(r["birth_place"])
@@ -134,7 +149,54 @@ def load():
         land = next((name for name, keys in LANDINGS
                      if any(k in place for k in keys)), "Elsewhere")
         flows[(label, land)] += 1
-    return stream, counts, len(imm), flows
+    # ── ancestral lines, tagged by crossing ────────────────────────────────
+    db = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    db.row_factory = sqlite3.Row
+    gen = {r["pid"]: r["generation"] for r in db.execute(
+        "SELECT pid, generation FROM fs_persons WHERE deleted=0")}
+    imm_tag = {}
+    for r in db.execute("SELECT pid, birth_place, death_place, birth_date, death_date, "
+                        "lifespan FROM fs_persons WHERE deleted=0"):
+        c = crossing_of(r)
+        if c:
+            imm_tag[r["pid"]] = c
+    couples = {r["couple_id"]: (r["parent1_pid"], r["parent2_pid"])
+               for r in db.execute("SELECT couple_id, parent1_pid, parent2_pid FROM fs_couples")}
+    up = collections.defaultdict(list)
+    for e in db.execute("SELECT child_couple_id, parent_couple_id FROM fs_edges"):
+        up[e["child_couple_id"]].append(e["parent_couple_id"])
+    db.close()
+
+    order, seen = [ROOT_COUPLE], {ROOT_COUPLE}
+    i = 0
+    while i < len(order):
+        c = order[i]; i += 1
+        for p in up.get(c, []):
+            if p not in seen:
+                seen.add(p); order.append(p)
+    tags = collections.defaultdict(set)
+    for c in order:
+        for pid in couples.get(c, ()):
+            if pid in imm_tag:
+                tags[c].add(imm_tag[pid])
+    for c in order:                      # child -> parent, so ancestors inherit
+        for p in up.get(c, []):
+            tags[p] |= tags[c]
+
+    lines = collections.defaultdict(collections.Counter)
+    placed = set()
+    for c in order:
+        for pid in couples.get(c, ()):
+            if not pid or pid in placed:
+                continue
+            placed.add(pid)
+            g = gen.get(pid)
+            if g is None or g > 14:
+                continue
+            t = tags[c]
+            lines[g]["several" if len(t) > 1 else (next(iter(t)) if t else "American")] += 1
+
+    return stream, counts, len(imm), flows, lines
 
 
 def smooth(points):
@@ -360,6 +422,80 @@ def sankey(flows):
   </figure>"""
 
 
+LINE_BANDS = [
+    ("American", "var(--color-neutral-800)"),
+    ("several", "var(--color-neutral-600)"),
+    ("V · Industrial", "var(--color-accent-200)"),
+    ("IV · Ulster Scots", "var(--color-accent-500)"),
+    ("III · Palatines", "var(--color-accent-600)"),
+    ("II · New Netherland", "var(--color-accent-300)"),
+    ("I · Great Migration", "var(--color-neutral-400)"),
+]
+
+
+def alluvial(lines):
+    """Ancestral lines converging. Reading right, each generation halves as
+    marriages merge two lines into one, and the coloured bands -- lines that
+    still sit at or above an immigrant, so still belong to one crossing --
+    dissolve into a single American stream."""
+    gens = [g for g in sorted(lines, reverse=True) if 0 <= g <= 14]
+    W, H = 1000, 380
+    PAD_L, PAD_R, PAD_T, PAD_B = 44, 44, 44, 40
+    inner = H - PAD_T - PAD_B
+    peak = max(sum(lines[g].values()) for g in gens)
+    xs = [PAD_L + (W - PAD_L - PAD_R) * i / (len(gens) - 1) for i in range(len(gens))]
+
+    # Normalised. Absolute widths made the funnel the whole figure and squeezed
+    # the merge -- which is the thing being shown -- into a thread at the right.
+    # The line counts printed along the top carry the funnel instead.
+    totals = [sum(lines[g].values()) for g in gens]
+    lower = [PAD_T + inner] * len(gens)
+    parts = []
+    for name, colour in LINE_BANDS:
+        upper = []
+        for i, g in enumerate(gens):
+            tot = sum(lines[g].values())
+            h = inner * lines[g].get(name, 0) / totals[i]
+            upper.append(lower[i] - h)
+        fwd = smooth(list(zip(xs, upper)))
+        back = smooth(list(zip(reversed(xs), reversed(lower)))).replace("M", "L", 1)
+        parts.append(f'<path d="{fwd} {back} Z" fill="{colour}" opacity="0.92"/>')
+        lower = upper[:]
+
+    counts = "".join(
+        f'<text x="{x:.1f}" y="{PAD_T - 10}" text-anchor="middle" class="ax-n">'
+        f'{sum(lines[g].values())}</text>' for x, g in zip(xs, gens))
+    axis = "".join(
+        f'<text x="{x:.1f}" y="{H - PAD_B + 16}" text-anchor="middle" class="ax">{g}</text>'
+        for x, g in zip(xs, gens))
+    legend = " ".join(
+        f'<span><i style="background:{c}"></i>{n}</span>'
+        for n, c in reversed(LINE_BANDS))
+    return f"""  <figure class="chart-fig">
+    <div class="drift-legend">{legend}</div>
+    <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="none"
+         aria-label="Alluvial diagram of ancestral lines converging. At the fourteenth generation there are 898 separate lines, most of them still belonging to a single crossing. Moving forward in time each generation roughly halves as marriages merge lines, the coloured crossing bands dissolve into one American stream, and by the third generation a single line remains.">
+      {''.join(parts)}
+      {counts}
+      {axis}
+      <text x="{PAD_L}" y="{H - 6}" class="ax-t">{max(totals)} separate lines</text>
+      <text x="{W - PAD_R}" y="{H - 6}" text-anchor="end" class="ax-t">one person</text>
+    </svg>
+    <figcaption>Every ancestral line the record can reach, as a share of that generation.
+    The figures along the top are how many separate lines there are —
+    <b>{max(totals)} at the fourteenth generation, one at the end</b>, because every
+    marriage turns two lines into one. The colours are lines that still belong to a single
+    crossing, meaning people at or above an immigrant. Watch them give way to a single
+    <em>American</em> stream, which takes half the tree by about the tenth generation and
+    all of it by the third. <b>Crossing V arrives too late to be anything else</b> — it
+    enters at the fourth generation and is absorbed within two.<br><br>
+    <em>Several</em> means a line that feeds more than one crossing — the same deep
+    ancestor reached down two different immigrant descents. At the fourteenth generation
+    that is already 134 people, which is what a hundred people at Plymouth marrying each
+    other looks like nine generations later.</figcaption>
+  </figure>"""
+
+
 def crossings_chart(counts):
     """Two encodings, kept apart: when each crossing happened, and how big it
     was. The year range lives in the title line so nothing collides with the
@@ -429,11 +565,12 @@ def crossings_chart(counts):
 
 
 def main():
-    stream, counts, total, flows = load()
+    stream, counts, total, flows, lines = load()
     page = open(PAGE, encoding="utf-8").read()
     for marker, svg in (("stream", streamgraph(stream)),
                         ("bars", bars(stream)),
                         ("sankey", sankey(flows)),
+                        ("alluvial", alluvial(lines)),
                         ("crossings", crossings_chart(counts))):
         pat = re.compile(f"(<!-- CHART:{marker} -->).*?(<!-- /CHART:{marker} -->)", re.S)
         if not pat.search(page):
