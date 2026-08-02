@@ -333,3 +333,90 @@ blockquote.pull cite {
   html { scroll-behavior: auto; }
   .reveal-enabled [data-main] > * { opacity: 1; transform: none; transition: none; }
 }
+
+/* ═══════════════ narrative components ═══════════════
+   The spec's §10 budget of ~200 words per epoch was written against placeholder
+   copy. The real record is carried by its stories, so these are the vehicles
+   that hold them: person rosters, descent ladders, documentary quotation. */
+
+/* — roster: the nine, the patriots — */
+.people {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: clamp(24px, 2.6vw, 40px); margin-top: var(--space-8);
+}
+.person { display: grid; grid-template-columns: 8.6em minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.person .who {
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-58); line-height: 1.55; padding-top: .4em;
+  font-feature-settings: 'tnum' 1;
+}
+.person .who b {
+  display: block; font-family: var(--font-heading); font-weight: 400;
+  font-size: 19px; line-height: 1.15; letter-spacing: -0.025em;
+  text-transform: none; color: var(--color-accent-700); margin-bottom: 2px;
+}
+.person p { margin: 0; font-size: 14px; line-height: 24px; color: var(--ink-82); }
+@media (max-width: 1180px) { .people { grid-template-columns: 1fr; max-width: 62ch; } }
+@media (max-width: 620px) {
+  .person { grid-template-columns: 1fr; gap: var(--space-1); }
+  .person .who { padding-top: 0; }
+}
+
+/* — descent ladder — */
+.ladder {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px; line-height: 2.05; white-space: pre; overflow-x: auto;
+  background: var(--color-surface); padding: var(--space-4) var(--space-6);
+  margin: var(--space-6) 0; border-left: 1px solid var(--color-accent);
+  font-feature-settings: 'tnum' 1;
+}
+.ladder b { color: var(--color-accent-700); font-weight: 600; }
+.ladder .hi { color: var(--color-accent-800); font-weight: 600; }
+
+/* — editorial note — */
+.note {
+  border-left: 1px solid var(--color-accent); padding-left: 26px;
+  margin: var(--space-8) 0; font-size: 14px; line-height: 25px;
+  color: var(--ink-70); max-width: 62ch;
+}
+.note b { color: var(--color-text); }
+
+/* — documentary quotation (distinct from the display pull quote) — */
+blockquote.doc {
+  margin: var(--space-6) 0; padding-left: var(--space-6);
+  border-left: 1px solid var(--color-divider);
+  font-family: var(--font-heading); font-weight: 400;
+  font-size: 21px; line-height: 31px; max-width: 56ch;
+}
+blockquote.doc cite {
+  display: block; margin-top: var(--space-3); font-family: var(--font-body);
+  font-style: normal; font-size: 11.5px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-58);
+}
+
+/* — image pairs and trios — */
+.duo  { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 2.4vw, 34px); margin-top: var(--space-6); }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(16px, 2vw, 28px); margin-top: var(--space-6); }
+.duo figure, .trio figure { margin: 0; }
+.duo figcaption, .trio figcaption { font-size: 12px; line-height: 19px; color: var(--ink-62); margin-top: var(--space-2); }
+@media (max-width: 900px) { .duo, .trio { grid-template-columns: 1fr; } }
+
+/* — section headings outside the colophon bands — */
+[data-main] > section > h2 {
+  font-family: var(--font-heading); font-weight: 400;
+  font-size: clamp(30px, 3.6vw, 46px); line-height: 1.06;
+  letter-spacing: -0.042em; margin: 0 0 var(--space-4); margin-left: -0.042em;
+}
+[data-main] > section > h3, .era-copy h3, .story h3 {
+  font-family: var(--font-heading); font-weight: 400; font-size: 26px;
+  line-height: 1.1; letter-spacing: -0.03em; margin: var(--space-8) 0 var(--space-3);
+}
+h3 .yr {
+  font-family: var(--font-body); font-size: 11px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--color-accent-700);
+  margin-left: .9em; vertical-align: .3em; font-feature-settings: 'tnum' 1;
+}
+.lead { font-size: 17px; line-height: 29px; color: var(--ink-82); max-width: 52ch; }
+.story { font-size: 15.5px; line-height: 28px; color: var(--ink-82); max-width: 68ch; }
+.story p { text-align: justify; hyphens: auto; }
+@media (max-width: 760px) { .story p { text-align: left; hyphens: manual; } }
