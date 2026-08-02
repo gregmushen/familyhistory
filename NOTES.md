@@ -84,3 +84,21 @@ The spec's structural rules are all still honoured; only the word count is not.
 ## Where the crossing counts come from
 
 The five crossing totals and the `Crossed an ocean` headline are the `crossing_of` classification in `generate-charts.py`, not hand counts. An immigrant is someone born outside America after 1500 who died in America after 1607; the crossing is their birth nation, except that a birth from 1800 is the Industrial Crossing whatever the nation. As of the completed hydration they sum exactly to the headline (488+27+25+12+8 = 560) with nobody unclassified. If they stop summing, the data moved and the page is stale.
+
+## Verifying a deploy
+
+Compare a **sha256 of the live page against local**, never the byte size.
+
+Cloudflare's edge serves a stale copy for a short window after a push, so the
+check matters. Size looks like a reasonable proxy and is not: refreshing the
+crossing counts changed 544 to 560, 472 to 488, 16 to 27 and 21 to 25 — every
+edit digit-for-digit — so the file length never moved. A size comparison passed
+against a page that still showed all the old numbers.
+
+    LOCAL=$(shasum -a 256 index.html | cut -d' ' -f1)
+    curl -sS -H 'Cache-Control: no-cache' \
+      "https://familyhistory.gregmushen.com/?b=$(date +%s)$RANDOM" -o /tmp/live.html
+    [ "$(shasum -a 256 /tmp/live.html | cut -d' ' -f1)" = "$LOCAL" ]
+
+Grepping the live page for a phrase you just added is the other honest check,
+and catches what a hash cannot explain.
