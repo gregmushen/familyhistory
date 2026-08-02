@@ -503,3 +503,10 @@ figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
   display: block; margin-top: 5px; color: var(--color-accent-700);
   letter-spacing: 0.09em; font-size: 10px;
 }
+
+/* Identity column: name, dates, place, war — each on its own line, as block
+   elements rather than a text node chasing a <br>. */
+.person .who .yrs, .person .who .place, .person .who .war { display: block; }
+.person .who .yrs { margin-top: 2px; }
+.person .who .place { margin-top: 2px; }
+.person .who .war { margin-top: 6px; color: var(--color-accent-700); font-size: 10px; }
