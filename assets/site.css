@@ -475,3 +475,25 @@ h3 .yr {
 @media (max-width: 620px) {
   .waypoints li { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* — links in running prose: accent at paragraph size must use the deep step
+     (6.0:1), never base accent (3.0:1, large text only). Spec §11. — */
+.story a, .note a, .provenance a, figcaption a, .lead a, .body a, .sources a {
+  color: var(--color-accent-700);
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  text-underline-offset: 3px;
+}
+.story a:hover, .note a:hover, .provenance a:hover,
+figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
+  text-decoration-color: var(--color-accent);
+}
+
+/* — source list — */
+.sources { list-style: none; margin: var(--space-6) 0 0; padding: 0; max-width: 68ch; }
+.sources li {
+  padding: var(--space-3) 0; border-top: 1px solid var(--color-divider);
+  font-size: 13.5px; line-height: 22px; color: var(--ink-70);
+}
+.sources li:last-child { border-bottom: 1px solid var(--color-divider); }
+.sources b { color: var(--color-text); font-weight: 600; }
+.sources .src-note { display: block; color: var(--ink-58); }
