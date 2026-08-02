@@ -131,17 +131,21 @@ def load():
     def born(r):
         return year(r["birth_date"], r["lifespan"]) or 0
 
-    counts = {
-        "england": sum(1 for r in imm
-                       if nation_of(r["birth_place"]) in ("England", "Wales")
-                       and born(r) < 1700),
-        "dutch": sum(1 for r in imm if nation_of(r["birth_place"]) == "Netherlands"),
-        "german": sum(1 for r in imm if nation_of(r["birth_place"]) == "Germany"),
-        "ulster": sum(1 for r in imm
-                      if nation_of(r["birth_place"]) in ("Ulster", "Ireland")
-                      and born(r) < 1800),
-        "late": sum(1 for r in imm if born(r) >= 1800),
-    }
+    # One classifier for the whole page. The crossings table in index.html is
+    # generated from the same rule, so the five must always sum to the headline
+    # count of immigrants -- if they stop summing, the data moved.
+    def crossing_key(r):
+        if born(r) >= 1800:
+            return "late"
+        return {"England": "england", "Wales": "england", "Scotland": "england",
+                "Netherlands": "dutch", "Germany": "german",
+                "Ulster": "ulster", "Ireland": "ulster"}.get(
+                    nation_of(r["birth_place"]))
+
+    counts = collections.Counter(crossing_key(r) for r in imm)
+    counts.pop(None, None)
+    assert sum(counts.values()) == len(imm), (
+        f"crossings {sum(counts.values())} != immigrants {len(imm)}")
     def crossing_of(r):
         o = nation_of(r["birth_place"])
         if not o or not in_america(r["death_place"]):
@@ -428,12 +432,12 @@ def sankey(flows):
       {''.join(nodes)}
     </svg>
     <figcaption>All {total} ancestors who crossed an ocean, from the country they were born
-    in to the colony they died in. Two things at once. <b>England is 86% of everything</b>
-    — that slab at the top is the Great Migration, and it pours almost entirely into
+    in to the colony they died in. Two things at once. England is 86% of everything:
+    that slab at the top is the Great Migration, and it pours almost entirely into
     Massachusetts Bay and Plymouth. And beneath it the ribbons barely cross: the Dutch to
     New York, the Germans to New York and Pennsylvania, the Ulster Scots and Irish to
     Pennsylvania. Five migrations that shared a continent and did not mix.<br><br>
-    The one ribbon that does cross is the interesting one — the Netherlands reaching over
+    The one ribbon that does cross is the interesting one, the Netherlands reaching over
     to Plymouth is the <a href="#mayflower">Leiden congregation</a>, English Separatists
     whose children were born in Holland during the exile and who are Dutch only by
     birthplace.</figcaption>
@@ -500,14 +504,14 @@ def alluvial(lines):
       <text x="{W - PAD_R}" y="{H - 6}" text-anchor="end" class="ax-t">one person</text>
     </svg>
     <figcaption>Every ancestral line the record can reach, as a share of that generation.
-    The figures along the top are how many separate lines there are —
+    The figures along the top are how many separate lines there are:
     <b>{max(totals)} at the fourteenth generation, one at the end</b>, because every
     marriage turns two lines into one. The colours are lines that still belong to a single
     crossing, meaning people at or above an immigrant. Watch them give way to a single
     <em>American</em> stream, which takes half the tree by about the tenth generation and
-    all of it by the third. <b>Crossing V arrives too late to be anything else</b> — it
+    all of it by the third. Crossing V arrives too late to be anything else: it
     enters at the fourth generation and is absorbed within two.<br><br>
-    <em>Several</em> means a line that feeds more than one crossing — the same deep
+    <em>Several</em> means a line that feeds more than one crossing, the same deep
     ancestor reached down two different immigrant descents. At the fourteenth generation
     that is already 134 people, which is what a hundred people at Plymouth marrying each
     other looks like nine generations later.</figcaption>
@@ -559,7 +563,7 @@ def crossings_chart(counts):
                    f'height="17" fill="{shade}"/>')
         if w > 90:
             seg.append(f'<text x="{sx + 10:.1f}" y="{bar_y + 12}" class="cx-in">'
-                       f'{num} — {100 * counts[key] / total:.0f}%</text>')
+                       f'{num} · {100 * counts[key] / total:.0f}%</text>')
         sx += w
     caption = (f'<text x="{PAD_L}" y="{bar_y - 9}" class="ax-t">'
                f'share of all {total} crossings</text>'
