@@ -529,3 +529,35 @@ figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
 @media (max-width: 760px) {
   .story figure.plate-fig[style*="float"] { float: none !important; margin-left: 0 !important; max-width: 220px; }
 }
+
+/* ═══════════════ ruled-out page ═══════════════ */
+.claim { padding: var(--space-6) 0; border-top: 1px solid var(--color-divider); }
+.claim:last-of-type { border-bottom: 1px solid var(--color-divider); }
+.claim-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.claim-head h3 {
+  font-family: var(--font-heading); font-weight: 400; font-size: 23px;
+  line-height: 1.15; letter-spacing: -0.025em; margin: 0;
+}
+.verdict {
+  font-size: 10px; letter-spacing: 0.11em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: calc(var(--radius-md) * 0.75); white-space: nowrap;
+}
+.v-out      { background: var(--color-neutral-800); color: var(--color-bg); }
+.v-legend   { border: 1px solid var(--color-accent); color: var(--color-accent-700); }
+.v-conflict { background: var(--color-accent-100); color: var(--color-accent-800); }
+.v-open     { border: 1px solid var(--color-divider); color: var(--ink-58); }
+.claim dl { margin: 0; font-size: 14.5px; line-height: 24px; max-width: 68ch; }
+.claim dt {
+  font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-accent-700); margin-top: var(--space-3);
+}
+.claim dt:first-child { margin-top: 0; }
+.claim dd { margin: 3px 0 0; color: var(--ink-82); }
+.claim dd a { color: var(--color-accent-700); text-underline-offset: 3px; }
+.backlink {
+  display: inline-block; margin-top: var(--space-4); font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent-700);
+}
