@@ -290,9 +290,10 @@ def bars(stream):
     rows = []
     for g in gens:
         tot = sum(stream[g].values())
-        if g == 7:
+        mark = {7: "the Revolution", 4: "the Civil War"}.get(g)
+        if mark:
             rows.append('    <div class="drift-break"><span></span>'
-                        '<span><em>the Revolution</em></span><span></span></div>')
+                        f'<span><em>{mark}</em></span><span></span></div>')
         segs = "".join(
             f'<span style="width:{100 * stream[g][n] / tot:.1f}%;background:{c}"></span>'
             for n, c, _ in REGIONS if stream[g][n])
