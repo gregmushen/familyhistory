@@ -497,3 +497,9 @@ figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
 .sources li:last-child { border-bottom: 1px solid var(--color-divider); }
 .sources b { color: var(--color-text); font-weight: 600; }
 .sources .src-note { display: block; color: var(--ink-58); }
+
+/* — which war, in the roster's identity column — */
+.person .who .war {
+  display: block; margin-top: 5px; color: var(--color-accent-700);
+  letter-spacing: 0.09em; font-size: 10px;
+}
