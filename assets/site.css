@@ -518,3 +518,9 @@ figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
   color: var(--ink-58); letter-spacing: 0.06em; text-transform: uppercase;
   font-size: 10.5px;
 }
+
+/* Minor heading inside a story block, below the section h3. */
+.story .sub-head {
+  font-family: var(--font-heading); font-weight: 400; font-size: 20px;
+  line-height: 1.15; letter-spacing: -0.02em; margin: 1.7em 0 .6em;
+}
