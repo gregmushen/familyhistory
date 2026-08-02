@@ -561,3 +561,42 @@ figcaption a:hover, .lead a:hover, .body a:hover, .sources a:hover {
   display: inline-block; margin-top: var(--space-4); font-size: 12px;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent-700);
 }
+
+/* ═══════════════ generated figures ═══════════════ */
+.chart-fig { margin: var(--space-8) 0; }
+.chart-fig svg { width: 100%; height: auto; display: block; }
+.chart-fig figcaption {
+  font-size: 13px; line-height: 21px; color: var(--ink-62);
+  margin-top: var(--space-3); max-width: 68ch;
+}
+.chart-fig .ax {
+  font-family: var(--font-body); font-size: 11px; fill: var(--ink-50);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.chart-fig .ax-n {
+  font-family: var(--font-body); font-size: 9.5px; fill: var(--ink-50);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.chart-fig .ax-t {
+  font-family: var(--font-body); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; fill: var(--ink-50);
+}
+.chart-fig .ax-mark {
+  font-family: var(--font-body); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; fill: var(--color-accent-700);
+}
+.chart-fig .cx-lab {
+  font-family: var(--font-heading); font-size: 15px; fill: var(--color-text);
+}
+.chart-fig .cx-num {
+  font-family: var(--font-body); font-size: 12px; fill: var(--ink-70);
+  font-variant-numeric: tabular-nums lining-nums; font-weight: 600;
+}
+.chart-fig .cx-yr {
+  font-family: var(--font-body); font-size: 10px; fill: var(--ink-50);
+  font-variant-numeric: tabular-nums lining-nums; letter-spacing: 0.06em;
+}
+.chart-fig .cx-in {
+  font-family: var(--font-body); font-size: 10px; fill: var(--color-bg);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}

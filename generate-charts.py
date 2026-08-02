@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+"""Generate the two data figures for the record, as inline SVG.
+
+  1. A streamgraph of where each generation died — the family flowing west.
+  2. A timeline of the five crossings, on a common year axis.
+
+Both read live from the FamilySearch mirror, so re-running after hydration
+finishes updates them. Output is written between HTML markers in index.html:
+
+    <!-- CHART:stream -->  …generated…  <!-- /CHART:stream -->
+    <!-- CHART:crossings -->  …generated…  <!-- /CHART:crossings -->
+
+No JavaScript, no chart library — the page has neither and should keep neither.
+Colours come from the design-system tokens, not hex.
+"""
+import collections
+import os
+import re
+import sqlite3
+import sys
+
+DB = os.path.expanduser("~/.local/share/familysearch-pp-cli/data.db")
+PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+
+REGIONS = [
+    ("New England", "var(--color-neutral-800)",
+     ["Massachusetts", "Plymouth", "Connecticut", "Rhode Island",
+      "New Hampshire", "Vermont", "Maine"]),
+    ("Mid-Atlantic", "var(--color-neutral-500)",
+     ["New York", "New Jersey", "Pennsylvania", "Maryland", "Delaware",
+      "New Netherland"]),
+    ("Midwest", "var(--color-accent-600)",
+     ["Ohio", "Indiana", "Illinois", "Iowa", "Michigan", "Wisconsin",
+      "Missouri", "Kansas", "Nebraska", "Minnesota"]),
+    ("West", "var(--color-accent-300)",
+     ["Oregon", "California", "Washington", "Nevada", "Idaho", "Colorado", "Utah"]),
+]
+
+# The five crossings: label, span, and how to count its people.
+CROSSINGS = [
+    ("I", "The Great Migration", 1620, 1640, "england"),
+    ("II", "New Netherland", 1624, 1664, "dutch"),
+    ("III", "The Palatines", 1709, 1760, "german"),
+    ("IV", "The Ulster Scots", 1718, 1775, "ulster"),
+    ("V", "The Industrial Crossing", 1840, 1870, "late"),
+]
+
+
+def region_of(place):
+    for name, _, towns in REGIONS:
+        for t in towns:
+            if t in place:
+                return name
+
+
+def nation_of(p):
+    if not p:
+        return None
+    q = p.lower()
+    if "northern ireland" in q or any(u in q for u in (
+            "antrim", "down", "armagh", "londonderry", "derry", "fermanagh",
+            "tyrone", "donegal", "monaghan", "ulster")):
+        return "Ulster"
+    if "ireland" in q:
+        return "Ireland"
+    if "scotland" in q:
+        return "Scotland"
+    if "wales" in q or "caernarfon" in q or "glamorgan" in q or "monmouth" in q:
+        return "Wales"
+    if "england" in q or "united kingdom" in q:
+        return "England"
+    if any(x in q for x in ("germany", "baden", "bavaria", "prussia", "rhineland",
+                            "württemberg", "mecklenburg", "palatin", "hesse", "saxony")):
+        return "Germany"
+    if "netherlands" in q or "holland" in q:
+        return "Netherlands"
+    return None
+
+
+def in_america(p):
+    q = (p or "").lower()
+    return ("united states" in q or "colonial america" in q
+            or "new netherland" in q or "colony" in q)
+
+
+def year(*vals):
+    for v in vals:
+        m = re.search(r"\b(1[0-9]{3})\b", v or "")
+        if m:
+            return int(m.group(1))
+
+
+def load():
+    db = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT generation, birth_place, death_place, birth_date, death_date, "
+        "lifespan FROM fs_persons WHERE deleted=0").fetchall()
+    db.close()
+
+    stream = collections.defaultdict(collections.Counter)
+    for r in rows:
+        g = region_of(r["death_place"] or "")
+        if g and r["generation"] is not None:
+            stream[r["generation"]][g] += 1
+
+    # A death in America before Jamestown is a place-name standardiser artefact.
+    imm = [r for r in rows
+           if nation_of(r["birth_place"]) and in_america(r["death_place"])
+           and (year(r["death_date"], "") or 9999) >= 1607
+           and (year(r["birth_date"], "") or 9999) >= 1500]
+
+    def born(r):
+        return year(r["birth_date"], r["lifespan"]) or 0
+
+    counts = {
+        "england": sum(1 for r in imm
+                       if nation_of(r["birth_place"]) in ("England", "Wales")
+                       and born(r) < 1700),
+        "dutch": sum(1 for r in imm if nation_of(r["birth_place"]) == "Netherlands"),
+        "german": sum(1 for r in imm if nation_of(r["birth_place"]) == "Germany"),
+        "ulster": sum(1 for r in imm
+                      if nation_of(r["birth_place"]) in ("Ulster", "Ireland")
+                      and born(r) < 1800),
+        "late": sum(1 for r in imm if born(r) >= 1800),
+    }
+    return stream, counts, len(imm)
+
+
+def smooth(points):
+    """A path through points with horizontal-tangent cubic segments."""
+    d = [f"M {points[0][0]:.1f} {points[0][1]:.1f}"]
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        cx = (x0 + x1) / 2
+        d.append(f"C {cx:.1f} {y0:.1f} {cx:.1f} {y1:.1f} {x1:.1f} {y1:.1f}")
+    return " ".join(d)
+
+
+def streamgraph(stream):
+    """Composition by generation. Height is constant and each generation is
+    normalised to its own total — absolute widths made the later generations
+    (n=28, n=12, n=3) invisible, which is where the whole westward story is.
+    Cohort size is carried by the printed n above each column instead."""
+    gens = [g for g in sorted(stream, reverse=True) if 2 <= g <= 14
+            and sum(stream[g].values()) >= 3]
+    W, H, PAD_L, PAD_R, PAD_T, PAD_B = 1000, 314, 40, 40, 46, 34
+    inner_h = H - PAD_T - PAD_B
+    xs = [PAD_L + (W - PAD_L - PAD_R) * i / (len(gens) - 1) for i in range(len(gens))]
+
+    lower = [PAD_T + inner_h] * len(gens)
+    parts = []
+    for name, colour, _ in REGIONS:
+        upper = []
+        for i, g in enumerate(gens):
+            tot = sum(stream[g].values())
+            share = stream[g][name] / tot if tot else 0
+            upper.append(lower[i] - share * inner_h)
+        fwd = smooth(list(zip(xs, upper)))
+        back = smooth(list(zip(reversed(xs), reversed(lower)))).replace("M", "L", 1)
+        parts.append(f'<path d="{fwd} {back} Z" fill="{colour}"/>')
+        lower = upper[:]
+
+    labels = "".join(
+        f'<text x="{x:.1f}" y="{H - PAD_B + 15}" text-anchor="middle" '
+        f'class="ax">{g}</text>' for x, g in zip(xs, gens))
+    ticks = "".join(
+        f'<text x="{x:.1f}" y="{PAD_T - 8}" text-anchor="middle" class="ax-n">'
+        f'{sum(stream[g].values())}</text>' for x, g in zip(xs, gens))
+
+    try:
+        i7 = gens.index(7)
+        bx = (xs[i7] + xs[i7 - 1]) / 2
+        rule = (f'<line x1="{bx:.1f}" y1="{PAD_T}" x2="{bx:.1f}" y2="{H - PAD_B}" '
+                f'stroke="var(--color-bg)" stroke-width="2"/>'
+                f'<line x1="{bx:.1f}" y1="{PAD_T}" x2="{bx:.1f}" y2="{H - PAD_B}" '
+                f'stroke="var(--color-accent)" stroke-width="1" stroke-dasharray="3 3"/>'
+                f'<text x="{bx:.1f}" y="14" text-anchor="middle" '
+                f'class="ax-mark">the Revolution</text>'
+                f'<line x1="{bx:.1f}" y1="19" x2="{bx:.1f}" y2="{PAD_T - 16}" '
+                f'stroke="var(--color-accent)" stroke-width="1"/>')
+    except ValueError:
+        rule = ""
+
+    legend = " ".join(
+        f'<span><i style="background:{c}"></i>{n}</span>' for n, c, _ in REGIONS)
+
+    return f"""  <figure class="chart-fig">
+    <div class="drift-legend">{legend}</div>
+    <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="none"
+         aria-label="Composition of each generation by the region of the country its members died in, from the fourteenth generation back to the second. New England fills almost the whole band in the deep generations, collapses between the eighth and the seventh, and is replaced first by the Mid-Atlantic, then the Midwest, then the West.">
+      {''.join(parts)}
+      {rule}
+      {ticks}
+      {labels}
+      <text x="{PAD_L}" y="{H - 4}" class="ax-t">deepest generation</text>
+      <text x="{W - PAD_R}" y="{H - 4}" text-anchor="end" class="ax-t">most recent</text>
+    </svg>
+    <figcaption>Where each generation died, as a share of that generation. The figure
+    above each column is how many ancestors it rests on — 497 at the eighth generation,
+    three at the second — so the right-hand end is thinner evidence, not a thinner family.
+    Read left to right: New England fills the band for six generations, then goes in a
+    single step.</figcaption>
+  </figure>"""
+
+
+def crossings_chart(counts):
+    """Two encodings, kept apart: when each crossing happened, and how big it
+    was. The year range lives in the title line so nothing collides with the
+    axis, and the share bar sits below the axis with its own clearance."""
+    W, PAD_L, PAD_R, ROW = 1000, 26, 26, 50
+    lo, hi = 1600, 1900
+    span = W - PAD_L - PAD_R
+    total = sum(counts[k] for _, _, _, _, k in CROSSINGS)
+    rows, y = [], 18
+    for num, name, a, b, key in CROSSINGS:
+        n = counts[key]
+        x1 = PAD_L + span * (a - lo) / (hi - lo)
+        x2 = PAD_L + span * (b - lo) / (hi - lo)
+        # rows near the right edge get their label and count mirrored inward,
+        # or the year range runs off the viewBox
+        near_right = x1 > PAD_L + span * 0.62
+        if near_right:
+            label = (f'<text x="{x2:.1f}" y="0" text-anchor="end" class="cx-lab">'
+                     f'{num} · {name}<tspan class="cx-yr" dx="10">{a}–{b}</tspan></text>')
+            count = f'<text x="{x1 - 9:.1f}" y="19" text-anchor="end" class="cx-num">{n}</text>'
+        else:
+            label = (f'<text x="{x1:.1f}" y="0" class="cx-lab">{num} · {name}'
+                     f'<tspan class="cx-yr" dx="10">{a}–{b}</tspan></text>')
+            count = f'<text x="{x2 + 9:.1f}" y="19" class="cx-num">{n}</text>'
+        rows.append(
+            f'<g transform="translate(0,{y})">{label}'
+            f'<rect x="{x1:.1f}" y="8" width="{max(x2 - x1, 3):.1f}" height="14" rx="1" '
+            f'fill="var(--color-accent-600)"/>{count}</g>')
+        y += ROW
+
+    axis_y = y + 2
+    axis = "".join(
+        f'<text x="{PAD_L + span * (t - lo) / (hi - lo):.1f}" y="{axis_y + 14}" '
+        f'text-anchor="middle" class="ax">{t}</text>'
+        for t in range(1600, 1901, 50))
+
+    bar_y = axis_y + 44
+    sx, seg = PAD_L, []
+    for num, name, _, _, key in CROSSINGS:
+        w = span * counts[key] / total
+        shade = "var(--color-neutral-800)" if num == "I" else "var(--color-accent-600)"
+        seg.append(f'<rect x="{sx:.2f}" y="{bar_y}" width="{max(w, 1.0):.2f}" '
+                   f'height="17" fill="{shade}"/>')
+        if w > 90:
+            seg.append(f'<text x="{sx + 10:.1f}" y="{bar_y + 12}" class="cx-in">'
+                       f'{num} — {100 * counts[key] / total:.0f}%</text>')
+        sx += w
+    caption = (f'<text x="{PAD_L}" y="{bar_y - 9}" class="ax-t">'
+               f'share of all {total} crossings</text>'
+               f'<text x="{W - PAD_R}" y="{bar_y - 9}" text-anchor="end" class="ax-t">'
+               f'II–V together: {100 * (total - counts["england"]) / total:.0f}%</text>')
+    H = bar_y + 26
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="The five crossings on a year axis from 1600 to 1900, with a stacked bar beneath showing that the Great Migration accounts for about seven-eighths of all immigrant ancestors.">
+      {''.join(rows)}
+      <line x1="{PAD_L}" y1="{axis_y}" x2="{W - PAD_R}" y2="{axis_y}"
+            stroke="var(--color-divider)" stroke-width="1"/>
+      {axis}
+      {caption}
+      {''.join(seg)}
+    </svg>
+    <figcaption>Above, when each crossing happened. Below, the same five as a share of all
+    {total} people who made one. The two long silences — 1664 to 1709, and 1775 to 1840 —
+    are as much the story as the arrivals.</figcaption>
+  </figure>"""
+
+
+def main():
+    stream, counts, total = load()
+    page = open(PAGE, encoding="utf-8").read()
+    for marker, svg in (("stream", streamgraph(stream)),
+                        ("crossings", crossings_chart(counts))):
+        pat = re.compile(f"(<!-- CHART:{marker} -->).*?(<!-- /CHART:{marker} -->)", re.S)
+        if not pat.search(page):
+            print(f"  ! no marker for {marker} in index.html", file=sys.stderr)
+            continue
+        page = pat.sub(lambda m: f"{m.group(1)}\n{svg}\n  {m.group(2)}", page)
+    open(PAGE, "w", encoding="utf-8").write(page)
+    print(f"  charts written · {total} immigrants · "
+          + ", ".join(f"{k}={v}" for k, v in counts.items()))
+
+
+if __name__ == "__main__":
+    main()
