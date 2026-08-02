@@ -177,19 +177,22 @@ def streamgraph(stream):
         f'<text x="{x:.1f}" y="{PAD_T - 8}" text-anchor="middle" class="ax-n">'
         f'{sum(stream[g].values())}</text>' for x, g in zip(xs, gens))
 
-    try:
-        i7 = gens.index(7)
-        bx = (xs[i7] + xs[i7 - 1]) / 2
-        rule = (f'<line x1="{bx:.1f}" y1="{PAD_T}" x2="{bx:.1f}" y2="{H - PAD_B}" '
-                f'stroke="var(--color-bg)" stroke-width="2"/>'
-                f'<line x1="{bx:.1f}" y1="{PAD_T}" x2="{bx:.1f}" y2="{H - PAD_B}" '
-                f'stroke="var(--color-accent)" stroke-width="1" stroke-dasharray="3 3"/>'
-                f'<text x="{bx:.1f}" y="14" text-anchor="middle" '
-                f'class="ax-mark">the Revolution</text>'
-                f'<line x1="{bx:.1f}" y1="19" x2="{bx:.1f}" y2="{PAD_T - 16}" '
-                f'stroke="var(--color-accent)" stroke-width="1"/>')
-    except ValueError:
-        rule = ""
+    # war markers, placed on the boundary before the generation that fought
+    MARKS = [(7, "the Revolution"), (4, "the Civil War")]
+    rule = ""
+    for g, label in MARKS:
+        if g not in gens:
+            continue
+        i = gens.index(g)
+        bx = (xs[i] + xs[i - 1]) / 2
+        rule += (f'<line x1="{bx:.1f}" y1="{PAD_T}" x2="{bx:.1f}" y2="{H - PAD_B}" '
+                 f'stroke="var(--color-bg)" stroke-width="2"/>'
+                 f'<line x1="{bx:.1f}" y1="{PAD_T}" x2="{bx:.1f}" y2="{H - PAD_B}" '
+                 f'stroke="var(--color-accent)" stroke-width="1" stroke-dasharray="3 3"/>'
+                 f'<text x="{bx:.1f}" y="14" text-anchor="middle" '
+                 f'class="ax-mark">{label}</text>'
+                 f'<line x1="{bx:.1f}" y1="19" x2="{bx:.1f}" y2="{PAD_T - 16}" '
+                 f'stroke="var(--color-accent)" stroke-width="1"/>')
 
     legend = " ".join(
         f'<span><i style="background:{c}"></i>{n}</span>' for n, c, _ in REGIONS)
@@ -209,7 +212,8 @@ def streamgraph(stream):
     above each column is how many ancestors it rests on — 497 at the eighth generation,
     three at the second — so the right-hand end is thinner evidence, not a thinner family.
     Read left to right: New England fills the band for six generations, then goes in a
-    single step.</figcaption>
+    single step. The two dashed rules are the wars: generation 7 fought the Revolution,
+    generation 4 was of age for the Civil War.</figcaption>
   </figure>"""
 
 
