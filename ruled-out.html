@@ -8,8 +8,8 @@
 <meta name="color-scheme" content="light">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="assets/classical.css?v=37">
-<link rel="stylesheet" href="assets/site.css?v=37">
+<link rel="stylesheet" href="assets/classical.css?v=38">
+<link rel="stylesheet" href="assets/site.css?v=38">
 <script>
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches
       && 'IntersectionObserver' in window) {
@@ -33,7 +33,7 @@
     <div class="index-group">
       <p class="index-label">Rejected</p>
       <ul>
-        <li><a data-navlink href="#people">People who are not ancestors<span class="sub">6 entries</span></a></li>
+        <li><a data-navlink href="#people">People who are not ancestors<span class="sub">7 entries</span></a></li>
         <li><a data-navlink href="#dates">Impossible dates<span class="sub">1 entry</span></a></li>
       </ul>
     </div>
@@ -67,14 +67,14 @@
   <h1 class="display">Ruled out.</h1>
   <p class="dek">Family histories publish what survived. This is the other half — every
   claim this record considered and threw out, every portrait that turned out to be
-  somebody else, and every question still open. 23 entries, each with where it came
+  somebody else, and every question still open. 24 entries, each with where it came
   from and how it fell.</p>
   <p class="hint">Nothing on this page is on the main record</p>
 </header>
 
 <section class="stats" aria-label="Summary">
-  <div class="stat stat--accent"><b>23</b><span>Entries</span></div>
-  <div class="stat"><b>12</b><span>Rejected outright</span></div>
+  <div class="stat stat--accent"><b>24</b><span>Entries</span></div>
+  <div class="stat"><b>13</b><span>Rejected outright</span></div>
   <div class="stat"><b>4</b><span>Wrong faces</span></div>
   <div class="stat"><b>10</b><span>Still open</span></div>
 </section>
@@ -168,6 +168,19 @@
       <dt>Sources</dt>
       <dd><em>Ruled out by:</em> <a href="https://www.familysearch.org/tree/" rel="noopener">FamilySearch collaborative tree</a> · FamilySearch · 2026 · 116 sources, none military</dd>
       <dd><em>Context:</em> <a href="https://archive.org/details/soldiersinkingph00bodg" rel="noopener">Soldiers in King Philip's War</a> · George Madison Bodge · 1891 · no company command found</dd>
+    </dl>
+  </article>
+  <article class="claim">
+    <div class="claim-head"><h3>Aunts, uncles and in-laws counted as ancestors</h3><span class="verdict v-out">Rejected</span></div>
+    <dl>
+      <dt>The claim</dt>
+      <dd>Stephen Fay, Paul Plumer, Johannes Peter Ritter and two Riemensnyder women were presented on the record as ancestors.</dd>
+      <dt>How it was ruled out</dt>
+      <dd>None is a lineal ancestor. Their marriages form orphan couples in the edge graph — no parent edge above, no child edge below — while a sibling of theirs carries the line. Ruth Child, whom Fay married, shares both parents and nine siblings with the direct ancestor Prudence Child. Paul Plumer is a brother of the ancestor Jonathan Plumer. The two Riemensnyder women are sisters of the ancestor Maria Dorothea Riemensneider, and Ritter married one of them. An audit of all 85 people named on the record found these five and no others.</dd>
+      <dt></dt>
+      <dd>None were removed. Each is now labelled collateral where they appear, because an aunt who died at Oriskany is still family — she is just not an ancestor, and the record should not blur the two.</dd>
+      <dt>Sources</dt>
+      <dd><em>Ruled out by:</em> <b>Local edge graph of the FamilySearch mirror</b> · Derived from fs_couples / fs_edges · 2026 · orphan-couple audit, generation 8</dd>
     </dl>
   </article>
 </section>
@@ -445,6 +458,6 @@
 
 </main>
 
-<script src="assets/site.js?v=37"></script>
+<script src="assets/site.js?v=38"></script>
 </body>
 </html>
