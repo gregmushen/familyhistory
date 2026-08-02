@@ -203,6 +203,32 @@ def streamgraph(stream):
   </figure>"""
 
 
+def bars(stream):
+    """The same data as the streamgraph, generation by generation, with exact
+    percentages and the n each rests on. The stream shows the shape; this shows
+    the numbers, and neither substitutes for the other."""
+    gens = [g for g in sorted(stream, reverse=True) if 2 <= g <= 14
+            and sum(stream[g].values()) >= 3]
+    legend = " ".join(
+        f'<span><i style="background:{c}"></i>{n}</span>' for n, c, _ in REGIONS)
+    rows = []
+    for g in gens:
+        tot = sum(stream[g].values())
+        if g == 7:
+            rows.append('    <div class="drift-break"><span></span>'
+                        '<span><em>the Revolution</em></span><span></span></div>')
+        segs = "".join(
+            f'<span style="width:{100 * stream[g][n] / tot:.1f}%;background:{c}"></span>'
+            for n, c, _ in REGIONS if stream[g][n])
+        rows.append(
+            f'    <div class="drift-row"><span class="drift-gen">{g}</span>'
+            f'<span class="drift-track">{segs}</span>'
+            f'<span class="drift-n">{tot}</span></div>')
+    return ('  <div class="drift">\n'
+            f'    <div class="drift-legend">{legend}</div>\n'
+            + "\n".join(rows) + "\n  </div>")
+
+
 def crossings_chart(counts):
     """Two encodings, kept apart: when each crossing happened, and how big it
     was. The year range lives in the title line so nothing collides with the
@@ -275,6 +301,7 @@ def main():
     stream, counts, total = load()
     page = open(PAGE, encoding="utf-8").read()
     for marker, svg in (("stream", streamgraph(stream)),
+                        ("bars", bars(stream)),
                         ("crossings", crossings_chart(counts))):
         pat = re.compile(f"(<!-- CHART:{marker} -->).*?(<!-- /CHART:{marker} -->)", re.S)
         if not pat.search(page):
