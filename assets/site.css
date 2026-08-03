@@ -830,3 +830,7 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
   .chain > span { font-size: 16px; }
   .chain > span + span::before { margin: 0 7px; }
 }
+
+.chain.chain-3 > span { font-size: 22px; color: var(--color-accent-800); }
+.chain.chain-3 > span:last-of-type { color: var(--color-accent-800); }
+.chain.chain-3 > span + span::before { content: "→"; margin: 0 14px; }
