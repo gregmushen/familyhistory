@@ -801,3 +801,10 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
 .chart-fig .cs-both {
   font-family: var(--font-body); font-size: 10.5px; fill: var(--ink-50);
 }
+
+.story ul.qs {
+  margin: var(--space-4) 0; padding-left: 20px; max-width: 62ch;
+  font-size: 15px; line-height: 27px; color: var(--ink-82);
+}
+.story ul.qs li { margin-bottom: 6px; }
+.story ul.qs li::marker { color: var(--color-accent-600); }
