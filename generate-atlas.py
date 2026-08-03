@@ -379,33 +379,44 @@ def flow_map(rows, sides):
         dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{rr:.1f}" '
                     f'fill="var(--color-accent-800)" opacity="0.9"/>')
 
-    GAP = 15.0
-    for side in ("right", "left"):
-        group = [t for t in wanted if (t[1] > W * 0.62) == (side == "right")]
-        group.sort(key=lambda t: t[2])
-        placed = []
-        for k, x, y, rr in group:
-            ly = y
-            if placed and ly < placed[-1][1] + GAP:
-                ly = placed[-1][1] + GAP
+    GAP = 16.0
+    eastern = [t for t in wanted if t[1] > W * 0.62]
+    western = [t for t in wanted if t[1] <= W * 0.62]
+
+    # The eastern dots overlap each other, so nudging labels apart is not
+    # enough -- a label still lands on top of Massachusetts, which at this
+    # scale is a 28px disc. The whole cluster gets one label column clear of
+    # the rightmost dot, and a leader back to each dot.
+    if eastern:
+        col = max(x + rr for _k, x, _y, rr in eastern) + 22
+        eastern.sort(key=lambda t: t[2])
+        placed, prev = [], None
+        for k, x, y, rr in eastern:
+            ly = y if prev is None else max(y, prev + GAP)
             placed.append((k, ly, x, y, rr))
-        # Keep the block on the canvas.
-        if placed:
-            overflow = placed[-1][1] - (top + h + 4)
-            if overflow > 0:
-                placed = [(k, ly - overflow, x, y, rr) for k, ly, x, y, rr in placed]
+            prev = ly
+        overflow = placed[-1][1] - (top + h + 4)
+        if overflow > 0:
+            placed = [(k, ly - overflow, x, y, rr) for k, ly, x, y, rr in placed]
         for k, ly, x, y, rr in placed:
-            if side == "right":
-                anchor, tx, lead = "start", x + rr + 8, x + rr + 4
-            else:
-                anchor, tx, lead = "end", x - rr - 8, x - rr - 4
-            if abs(ly - y) > 1.5:
-                names.append(f'<path d="M {x + (rr + 2) * (1 if side == "right" else -1):.1f} '
-                             f'{y:.1f} L {lead:.1f} {ly - 4:.1f}" fill="none" '
-                             f'stroke="var(--color-neutral-400)" stroke-width="0.7" '
-                             f'opacity="0.7"/>')
-            names.append(f'<text x="{tx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" '
-                         f'class="fm-lab">{k} <tspan class="fm-n">{len(points[k])}</tspan></text>')
+            names.append(f'<path d="M {x + rr + 3:.1f} {y:.1f} L {col - 5:.1f} '
+                         f'{ly - 4:.1f}" fill="none" stroke="var(--color-neutral-400)" '
+                         f'stroke-width="0.7" opacity="0.65"/>')
+            names.append(f'<text x="{col:.1f}" y="{ly:.1f}" class="fm-lab">{k} '
+                         f'<tspan class="fm-n">{len(points[k])}</tspan></text>')
+
+    # Western dots are far apart; a label beside each is fine.
+    western.sort(key=lambda t: t[2])
+    prev = None
+    for k, x, y, rr in western:
+        ly = y if prev is None else max(y, prev + GAP)
+        prev = ly
+        if abs(ly - y) > 1.5:
+            names.append(f'<path d="M {x - rr - 3:.1f} {y:.1f} L {x - rr - 8:.1f} '
+                         f'{ly - 4:.1f}" fill="none" stroke="var(--color-neutral-400)" '
+                         f'stroke-width="0.7" opacity="0.65"/>')
+        names.append(f'<text x="{x - rr - 10:.1f}" y="{ly:.1f}" text-anchor="end" '
+                     f'class="fm-lab">{k} <tspan class="fm-n">{len(points[k])}</tspan></text>')
 
     # The ocean crossing dwarfs every internal route and has to be on the page,
     # or the map quietly implies the family started in Massachusetts.
