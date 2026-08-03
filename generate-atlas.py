@@ -364,25 +364,60 @@ def flow_map(rows, sides):
     for (a, b), n in flows.items():
         weight[a] += n
         weight[b] += n
+
+    # New England is a knot at this scale: half a dozen regions inside forty
+    # pixels. Labels are pushed apart vertically within their side of the map
+    # and joined back to their dot with a leader, rather than printed on top of
+    # one another.
+    wanted = []
+    for k, (lat, lon) in cent.items():
+        if len(points[k]) >= 4 or weight[k]:
+            wanted.append((k, px(lon), py(lat), 2.6 + math.sqrt(len(points[k])) * 0.62))
     for k, (lat, lon) in sorted(cent.items(), key=lambda kv: -len(points[kv[0]])):
         x, y = px(lon), py(lat)
         rr = 2.6 + math.sqrt(len(points[k])) * 0.62
         dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{rr:.1f}" '
                     f'fill="var(--color-accent-800)" opacity="0.9"/>')
-        if len(points[k]) >= 4 or weight[k]:
-            anchor, dx = ("end", -rr - 5) if lon > -75 else ("start", rr + 5)
-            names.append(f'<text x="{x + dx:.1f}" y="{y + 4:.1f}" text-anchor="{anchor}" '
+
+    GAP = 15.0
+    for side in ("right", "left"):
+        group = [t for t in wanted if (t[1] > W * 0.62) == (side == "right")]
+        group.sort(key=lambda t: t[2])
+        placed = []
+        for k, x, y, rr in group:
+            ly = y
+            if placed and ly < placed[-1][1] + GAP:
+                ly = placed[-1][1] + GAP
+            placed.append((k, ly, x, y, rr))
+        # Keep the block on the canvas.
+        if placed:
+            overflow = placed[-1][1] - (top + h + 4)
+            if overflow > 0:
+                placed = [(k, ly - overflow, x, y, rr) for k, ly, x, y, rr in placed]
+        for k, ly, x, y, rr in placed:
+            if side == "right":
+                anchor, tx, lead = "start", x + rr + 8, x + rr + 4
+            else:
+                anchor, tx, lead = "end", x - rr - 8, x - rr - 4
+            if abs(ly - y) > 1.5:
+                names.append(f'<path d="M {x + (rr + 2) * (1 if side == "right" else -1):.1f} '
+                             f'{y:.1f} L {lead:.1f} {ly - 4:.1f}" fill="none" '
+                             f'stroke="var(--color-neutral-400)" stroke-width="0.7" '
+                             f'opacity="0.7"/>')
+            names.append(f'<text x="{tx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" '
                          f'class="fm-lab">{k} <tspan class="fm-n">{len(points[k])}</tspan></text>')
 
     # The ocean crossing dwarfs every internal route and has to be on the page,
     # or the map quietly implies the family started in Massachusetts.
     oy = top + h + 40
-    ocean_arc = (f'<path d="M {W - right + 120:.0f} {oy:.0f} Q {W - right + 20:.0f} '
+    ocean_x = W - 30
+    ocean_arc = (f'<path d="M {ocean_x - 8:.0f} {oy:.0f} Q {W - right + 20:.0f} '
                  f'{oy - 34:.0f} {px(cent["Massachusetts"][1]):.0f} '
                  f'{py(cent["Massachusetts"][0]):.0f}" fill="none" '
                  f'stroke="var(--color-neutral-700)" stroke-width="9" opacity="0.3"/>')
-    ocean_lab = (f'<text x="{W - right + 124:.0f}" y="{oy + 4:.0f}" class="fm-lab">'
-                 f'from across the Atlantic <tspan class="fm-n">{ocean}</tspan></text>')
+    ocean_lab = (f'<text x="{ocean_x:.0f}" y="{oy - 14:.0f}" text-anchor="end" '
+                 f'class="fm-lab">from across the Atlantic '
+                 f'<tspan class="fm-n">{ocean}</tspan></text>')
     total = sum(flows.values())
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {oy + 56:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
