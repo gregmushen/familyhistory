@@ -71,8 +71,8 @@ def load():
     db = connect(DB)
     db.row_factory = sqlite3.Row
     rows = [dict(r) for r in db.execute(
-        "SELECT pid, name, lifespan, birth_date, death_date, birth_place, death_place, "
-        "birth_lat, birth_lon, death_lat, death_lon, generation "
+        "SELECT pid, name, gender, lifespan, birth_date, death_date, birth_place, "
+        "death_place, birth_lat, birth_lon, death_lat, death_lon, generation "
         "FROM fs_persons WHERE deleted=0")]
     db.close()
     return rows
@@ -97,7 +97,8 @@ def lives_chart(rows):
     people.sort()
 
     lo, hi = 1560, 2000
-    pad_l, pad_r, top = 116, 26, 84
+    pad_l, pad_r = 116, 26
+    top = 84
     span = W - pad_l - pad_r
     row_h = 0.46
     height = top + len(people) * row_h + 46
@@ -126,18 +127,35 @@ def lives_chart(rows):
     for year, label, kind, *rest in EVENTS:
         alive[year] = sum(1 for b, d in people if b <= year <= d)
 
-    # Salem is 33px from King Philip's War at this scale and the two wars at the
-    # right-hand end are closer still, so labels alternate between two rows.
+    # Seven events, three of them bunched in the last eighty years of the axis.
+    # Alternating two rows is not enough -- the Civil War and the Second World
+    # War overprinted each other -- so labels are measured and dropped into the
+    # first row where they do not collide with anything already placed.
+    def width(label, count):
+        return max(len(label) * 6.0, len(f"{count} alive") * 5.5) + 10
+
+    placed, rows_used = [], []
+    for year, label, kind, *rest in EVENTS:
+        w = width(label, alive[year])
+        anchor = "end" if x(year) + w > W - pad_r else "start"
+        dx = -4 if anchor == "end" else 4
+        x1 = x(year) - w + 4 if anchor == "end" else x(year)
+        x2 = x1 + w
+        row = 0
+        while any(row == r and not (x2 < a or x1 > b) for r, a, b in placed):
+            row += 1
+        placed.append((row, x1, x2))
+        rows_used.append((year, label, anchor, dx, row))
+
+    depth = max(r for *_, r in rows_used) + 1
     labels = []
-    for i, (year, label, kind, *rest) in enumerate(EVENTS):
-        anchor = "start" if year < 1900 else "end"
-        dx = 4 if anchor == "start" else -4
-        base = top - 44 if i % 2 == 0 else top - 14
-        labels.append(f'<line x1="{x(year):.1f}" y1="{base + 4}" x2="{x(year):.1f}" '
+    for year, label, anchor, dx, row in rows_used:
+        base = top - 14 - (depth - 1 - row) * 30
+        labels.append(f'<line x1="{x(year):.1f}" y1="{base + 4:.0f}" x2="{x(year):.1f}" '
                       f'y2="{top}" stroke="var(--color-neutral-400)" stroke-width="0.75" '
                       f'opacity="0.6"/>')
-        labels.append(f'<text x="{x(year) + dx:.1f}" y="{base - 14}" text-anchor="{anchor}" '
-                      f'class="lv-ev">{label}</text>')
+        labels.append(f'<text x="{x(year) + dx:.1f}" y="{base - 14:.0f}" '
+                      f'text-anchor="{anchor}" class="lv-ev">{label}</text>')
         labels.append(f'<text x="{x(year) + dx:.1f}" y="{base:.0f}" text-anchor="{anchor}" '
                       f'class="lv-n">{alive[year]} alive</text>')
 
@@ -412,8 +430,131 @@ def atlas_chart(rows):
   </figure>"""
 
 
+TITLE_RE = (r"(?:Capt|Captain|Rev|Dr|Lt|Lieut|Deacon|Hon|Sgt|Col|Sir|Lady|Elder|Ensign|"
+            r"Gov|Governor|King|Queen|Brig|Gen|General|Maj|Major|Mrs|Mr|Miss|Baroness|"
+            r"Baron|Earl|Duke|Duchess|Countess|Count|Lord|Prince|Princess)")
+SUFFIX_RE = (r"(?:Sr|Jr|Snr|Jnr|Esq|II|III|IV|V|VI|VII|VIII|IX|X|\d+(?:st|nd|rd|th))")
+PARTICLES = {"de", "del", "van", "von", "der", "den", "le", "la", "du", "des",
+             "of", "mac", "mc", "o", "fitz", "st"}
+
+# Surnames the parser produces only from broken records, where a given name sits
+# in the final position because the real family name was never entered.
+GIVEN_NAME_ARTEFACTS = {"William", "John", "Thomas", "Robert", "Richard", "Henry",
+                        "Elizabeth", "Margaret", "Mary", "Anne", "Ann", "James"}
+
+
+def surname(name):
+    """The family name, with titles, suffixes and parentheticals removed.
+
+    Written because the raw field is not usable for counting: 'Sr.' and 'Jr.'
+    were among the commonest 'surnames' in the tree until this ran. Particles
+    are kept attached, so 'de la Vigne' stays one name rather than 'Vigne'.
+    Returns None rather than guessing when a record holds only one name.
+    """
+    if not name:
+        return None
+    n = re.sub(r"\(.*?\)", "", re.sub(r"\*+", "", name))
+    n = re.sub(r"\b" + TITLE_RE + r"\.?\s+", "", n)
+    n = re.sub(r"\s+of\s+[A-Z].*$", "", n)          # "... of Halkhead"
+    for _ in range(3):
+        n = re.sub(r"[\s,]+" + SUFFIX_RE + r"\.?\s*$", "", n).strip()
+    n = re.sub(r"\s+", " ", n).strip(" ,.")
+    tokens = n.split()
+    if len(tokens) < 2:
+        return None
+    i = len(tokens) - 1
+    while i > 0 and tokens[i - 1].lower().strip(".") in PARTICLES:
+        i -= 1
+    out = " ".join(tokens[i:])
+    return out if len(out) > 1 and out[0].isupper() else None
+
+
+def surnames_chart(rows):
+    """When each family name entered this record and when it left it.
+
+    In a pedigree a surname survives only while sons carry it. The moment the
+    descent passes through a daughter the name stops being an ancestor's name,
+    which is why almost every bar on this chart ends in a woman.
+    """
+    people = collections.defaultdict(list)
+    for r in rows:
+        # Living people are excluded outright. A dot on this axis is a birth
+        # year, and the record does not publish those for the living.
+        if "Living" in (r["lifespan"] or ""):
+            continue
+        s = surname(r["name"])
+        born, _ = lifespan(r)
+        if s and born:
+            people[s].append((born, r["gender"], r["name"], r["generation"]))
+
+    # Sort on the year alone: generation can be None and would break a plain
+    # tuple comparison on ties.
+    fams = {s: sorted(v, key=lambda t: t[0]) for s, v in people.items() if len(v) >= 5}
+    fams = {s: v for s, v in fams.items() if v[-1][0] >= 1550}
+    # Given names that reach this point are always a mangled record, never a
+    # family: "Howell T William" and its kind. Counting them would put a name
+    # on the chart that nobody in this tree was ever called.
+    fams = {s: v for s, v in fams.items() if s not in GIVEN_NAME_ARTEFACTS}
+    order = sorted(fams, key=lambda s: (-fams[s][-1][0], s))[:46]
+
+    lo, hi = 1500, 2000
+    pad_l, pad_r, top, row_h = 132, 118, 40, 15.5
+    span = W - pad_l - pad_r
+    height = top + len(order) * row_h + 34
+    x = lambda y: pad_l + span * (min(max(y, lo), hi) - lo) / (hi - lo)
+
+    out, ended_female = [], 0
+    for i, s in enumerate(order):
+        v = fams[s]
+        y = top + i * row_h
+        first, last = v[0][0], v[-1][0]
+        term_gender = v[-1][1]
+        if term_gender == "FEMALE":
+            ended_female += 1
+        out.append(f'<line x1="{x(first):.1f}" y1="{y:.1f}" x2="{x(last):.1f}" y2="{y:.1f}" '
+                   f'stroke="var(--color-accent-600)" stroke-width="3.4" opacity="0.30" '
+                   f'stroke-linecap="round"/>')
+        for born, gender, _, _ in v:
+            out.append(f'<circle cx="{x(born):.1f}" cy="{y:.1f}" r="1.7" '
+                       f'fill="var(--color-accent-800)" opacity="0.55"/>')
+        colour = ("var(--color-accent)" if term_gender == "FEMALE"
+                  else "var(--color-neutral-800)")
+        out.append(f'<circle cx="{x(last):.1f}" cy="{y:.1f}" r="3.5" fill="{colour}"/>')
+        out.append(f'<text x="{pad_l - 10}" y="{y + 4:.1f}" text-anchor="end" '
+                   f'class="sn-name">{s}</text>')
+        # "Carries on" would be a claim the chart cannot support: living people
+        # are excluded, so a name ending on a man usually means his daughter is
+        # simply not drawn. Say what is true instead -- the record stops.
+        out.append(f'<text x="{x(last) + 9:.1f}" y="{y + 4:.1f}" class="sn-end">'
+                   f'{"ends in a daughter" if term_gender == "FEMALE" else "record stops"}'
+                   f'</text>')
+
+    axis_y = top + len(order) * row_h + 12
+    axis = "".join(
+        f'<text x="{x(t):.1f}" y="{axis_y + 13}" text-anchor="middle" class="ax">{t}</text>'
+        for t in range(1550, 2001, 50))
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="One bar per family name, running from the birth year of its earliest
+         ancestor to its latest, sorted by when the name leaves the record. A filled dot
+         marks the last person to carry it. Almost every dot marks a woman, because a
+         surname stops being an ancestral name as soon as the descent passes through a
+         daughter.">
+      {"".join(out)}
+      <line x1="{pad_l}" y1="{axis_y}" x2="{W - pad_r}" y2="{axis_y}"
+            stroke="var(--color-divider)" stroke-width="1"/>
+      {axis}
+    </svg>
+    <figcaption>The {len(order)} family names that stayed in this record longest, each
+    drawn from its earliest ancestor's birth to its latest. Small dots are people; the
+    filled dot is the last one. <b>{ended_female} of these {len(order)} names end in a
+    woman</b> — the daughter who married, took another name, and carried the line onward
+    under it.</figcaption>
+  </figure>"""
+
+
 CHARTS = {"lives": lives_chart, "occupancy": occupancy_chart, "flow": flow_map,
-          "atlas": atlas_chart}
+          "atlas": atlas_chart, "surnames": surnames_chart}
 
 
 def main():

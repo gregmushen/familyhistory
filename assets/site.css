@@ -743,3 +743,11 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
   font-family: var(--font-body); font-size: 11px; fill: var(--ink-50);
   font-variant-numeric: tabular-nums lining-nums;
 }
+
+.chart-fig .sn-name {
+  font-family: var(--font-body); font-size: 11.5px; fill: var(--ink-70);
+}
+.chart-fig .sn-end {
+  font-family: var(--font-body); font-size: 10px; fill: var(--ink-50);
+  letter-spacing: 0.03em;
+}
