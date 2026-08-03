@@ -78,7 +78,7 @@ def load():
     return rows
 
 
-def lives_chart(rows):
+def lives_chart(rows, sides):
     """One hairline per ancestor who died in America, over the events they lived through.
 
     Sorted by birth year, so the shape of the block is the shape of the family:
@@ -93,15 +93,15 @@ def lives_chart(rows):
         # A death in America before Jamestown is a place-name artefact, not a life.
         if not in_america(r["death_lat"], r["death_lon"]) or died < 1607:
             continue
-        people.append((born, died))
-    people.sort()
+        people.append((born, died, side_of(r["pid"], sides)))
+    people.sort(key=lambda t: t[0])
 
     lo, hi = 1560, 2000
     pad_l, pad_r = 116, 26
     top = 84
     span = W - pad_l - pad_r
     row_h = 0.46
-    height = top + len(people) * row_h + 46
+    height = top + len(people) * row_h + 78
     x = lambda year: pad_l + span * (year - lo) / (hi - lo)
 
     out = []
@@ -117,15 +117,16 @@ def lives_chart(rows):
                        f'stroke="var(--color-neutral-500)" stroke-width="1" '
                        f'stroke-dasharray="2 3" opacity="0.5"/>')
 
-    for i, (born, died) in enumerate(people):
+    for i, (born, died, side) in enumerate(people):
         y = top + i * row_h
+        colour = SIDE_COLOUR.get(side, "var(--color-neutral-500)")
         out.append(f'<line x1="{x(born):.2f}" y1="{y:.2f}" x2="{x(died):.2f}" y2="{y:.2f}" '
-                   f'stroke="var(--color-accent-800)" stroke-width="0.42" opacity="0.5"/>')
+                   f'stroke="{colour}" stroke-width="0.42" opacity="0.62"/>')
 
     # How many of these people were alive in each event year.
     alive = {}
     for year, label, kind, *rest in EVENTS:
-        alive[year] = sum(1 for b, d in people if b <= year <= d)
+        alive[year] = sum(1 for b, d, _s in people if b <= year <= d)
 
     # Seven events, three of them bunched in the last eighty years of the axis.
     # Alternating two rows is not enough -- the Civil War and the Second World
@@ -174,6 +175,7 @@ def lives_chart(rows):
          Civil War.">
       {"".join(labels)}
       {"".join(out)}
+      {legend(pad_l, axis_y + 30)}
       <line x1="{pad_l}" y1="{axis_y}" x2="{W - pad_r}" y2="{axis_y}"
             stroke="var(--color-divider)" stroke-width="1"/>
       {axis}
@@ -207,7 +209,7 @@ COLONIES = [
 ]
 
 
-def occupancy_chart(rows):
+def occupancy_chart(rows, sides):
     """Where the family was, by colony or state, in fifty-year slices.
 
     A person occupies a cell when they died in that place inside that slice.
@@ -217,6 +219,7 @@ def occupancy_chart(rows):
     lo, hi, step = 1600, 2000, 50
     buckets = list(range(lo, hi, step))
     grid = collections.Counter()
+    split = collections.defaultdict(collections.Counter)
     for r in rows:
         born, died = lifespan(r)
         if not died or died < 1607 or not in_america(r["death_lat"], r["death_lon"]):
@@ -227,12 +230,13 @@ def occupancy_chart(rows):
             continue
         slot = min(max((died - lo) // step * step + lo, lo), hi - step)
         grid[(name, slot)] += 1
+        split[(name, slot)][side_of(r["pid"], sides)] += 1
 
     used = [label for label, _ in COLONIES if any(grid[(label, b)] for b in buckets)]
     peak = max(grid.values()) if grid else 1
     pad_l, top, cell, gap = 168, 42, 46, 3
-    width = pad_l + len(buckets) * (cell + gap)
-    height = top + len(used) * (cell * 0.62 + gap) + 26
+    width = max(pad_l + len(buckets) * (cell + gap), 620)
+    height = top + len(used) * (cell * 0.62 + gap) + 50
     rows_svg, labels = [], []
     for i, label in enumerate(used):
         y = top + i * (cell * 0.62 + gap)
@@ -244,10 +248,22 @@ def occupancy_chart(rows):
             # Square-root scaling: a linear ramp makes Massachusetts the only
             # visible cell on the whole grid.
             op = 0 if not n else 0.12 + 0.78 * math.sqrt(n / peak)
-            rows_svg.append(f'<rect x="{x}" y="{y}" width="{cell}" height="{cell * 0.62:.0f}" '
-                            f'rx="1.5" fill="var(--color-accent-700)" opacity="{op:.3f}"/>')
             if n:
-                fill = "#fff" if op > 0.55 else "var(--ink-70)"
+                # The cell is banded by side, so the colour mix reads as
+                # composition while the opacity still reads as volume.
+                ch2 = cell * 0.62
+                oy2 = y
+                for key in ("father", "both", "mother", None):
+                    part = split[(label, b)][key]
+                    if not part:
+                        continue
+                    hh = ch2 * part / n
+                    rows_svg.append(f'<rect x="{x}" y="{oy2:.2f}" width="{cell}" '
+                                    f'height="{hh:.2f}" fill="{SIDE_COLOUR[key]}" '
+                                    f'opacity="{op:.3f}"/>')
+                    oy2 += hh
+            if n:
+                fill = "#fff" if op > 0.62 else "var(--ink-70)"
                 rows_svg.append(f'<text x="{x + cell / 2:.0f}" y="{y + 19}" '
                                 f'text-anchor="middle" class="oc-n" fill="{fill}">{n}</text>')
     for j, b in enumerate(buckets):
@@ -262,6 +278,7 @@ def occupancy_chart(rows):
          Midwest by the mid nineteenth century, and in Oregon and the far west last.">
       {"".join(labels)}
       {"".join(rows_svg)}
+      {legend(0, height - 6)}
     </svg>
     <figcaption>Where they died, by place and half-century. {total} ancestors placed.
     Shading is the square root of the count, because on a straight scale Massachusetts is
@@ -271,7 +288,7 @@ def occupancy_chart(rows):
   </figure>"""
 
 
-def flow_map(rows):
+def flow_map(rows, sides):
     """Minard-style: where the family physically moved, thickness by how many.
 
     Region positions are the mean of the actual death coordinates in that
@@ -284,6 +301,8 @@ def flow_map(rows):
                     None)
 
     flows, points, ocean = collections.Counter(), collections.defaultdict(list), 0
+    route_side = collections.defaultdict(collections.Counter)
+    ocean_side = collections.Counter()
     for r in rows:
         born, died = lifespan(r)
         if not died or died < 1607 or not in_america(r["death_lat"], r["death_lon"]):
@@ -294,10 +313,12 @@ def flow_map(rows):
         if not in_america(r["birth_lat"], r["birth_lon"]):
             if r["birth_lat"] is not None:
                 ocean += 1
+                ocean_side[side_of(r["pid"], sides)] += 1
             continue
         src = region(r["birth_place"])
         if src and dest and src != dest:
             flows[(src, dest)] += 1
+            route_side[(src, dest)][side_of(r["pid"], sides)] += 1
 
     cent = {k: (sum(p[0] for p in v) / len(v), sum(p[1] for p in v) / len(v))
             for k, v in points.items() if len(v) >= 2}
@@ -322,9 +343,10 @@ def flow_map(rows):
         dist = math.hypot(dx, dy) or 1
         bow = min(dist * 0.18, 54)
         cx, cy = mx - dy / dist * bow, my + dx / dist * bow
+        dominant = route_side[(a, b)].most_common(1)[0][0] if route_side[(a, b)] else None
         arcs.append(f'<path d="M {x1:.1f} {y1:.1f} Q {cx:.1f} {cy:.1f} {x2:.1f} {y2:.1f}" '
-                    f'fill="none" stroke="var(--color-accent-600)" '
-                    f'stroke-width="{0.7 + 2.6 * math.sqrt(n):.2f}" opacity="0.42" '
+                    f'fill="none" stroke="{SIDE_COLOUR[dominant]}" '
+                    f'stroke-width="{0.7 + 2.6 * math.sqrt(n):.2f}" opacity="0.5" '
                     f'stroke-linecap="round"/>')
 
     dots, names = [], []
@@ -353,7 +375,7 @@ def flow_map(rows):
                  f'from across the Atlantic <tspan class="fm-n">{ocean}</tspan></text>')
     total = sum(flows.values())
     return f"""  <figure class="chart-fig">
-    <svg viewBox="0 0 {W} {oy + 40:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+    <svg viewBox="0 0 {W} {oy + 56:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Flow map of ancestral movement across North America. Each dot is a
          colony or state placed at the average of the death coordinates recorded there, and
          each arc is a move from birthplace to place of death, thickness by number of
@@ -361,9 +383,11 @@ def flow_map(rows):
          west to Ohio, the Midwest and Oregon. A separate heavy arc marks {ocean} people who
          arrived across the Atlantic.">
       {ocean_arc}{"".join(arcs)}{"".join(dots)}{"".join(names)}{ocean_lab}
+      {legend(pad, oy + 34)}
     </svg>
     <figcaption>Movement inside North America: {total} people whose birthplace and place of
-    death are in different colonies or states, on {len(flows)} routes. Dots sit at the mean
+    death are in different colonies or states, on {len(flows)} routes, each arc coloured by
+    the side of the family that mostly walked it. Dots sit at the mean
     of the coordinates actually recorded in each place, and are sized by how many ancestors
     died there. The thickest line on the map is Massachusetts to Connecticut. Almost every
     heavy route is under two hundred miles — this family moved constantly and hardly went
@@ -371,7 +395,7 @@ def flow_map(rows):
   </figure>"""
 
 
-def atlas_chart(rows):
+def atlas_chart(rows, sides):
     """One small map per generation, same projection and extent throughout.
 
     Holding the frame fixed is the whole point: the cloud of dots does not
@@ -383,7 +407,8 @@ def atlas_chart(rows):
         if not died or died < 1607 or r["generation"] is None:
             continue
         if in_america(r["death_lat"], r["death_lon"]):
-            pts[r["generation"]].append((r["death_lat"], r["death_lon"]))
+            pts[r["generation"]].append(
+                (r["death_lat"], r["death_lon"], side_of(r["pid"], sides)))
 
     gens = sorted([g for g, v in pts.items() if len(v) >= 8], reverse=True)
     if not gens:
@@ -397,7 +422,7 @@ def atlas_chart(rows):
     cw, ch, gap, lab = 176, 116, 16, 30
     rows_n = math.ceil(len(gens) / cols)
     width = cols * cw + (cols - 1) * gap
-    height = rows_n * (ch + lab + gap)
+    height = rows_n * (ch + lab + gap) + 26
 
     cells = []
     for i, g in enumerate(gens):
@@ -410,10 +435,12 @@ def atlas_chart(rows):
         cells.append(f'<text x="{ox}" y="{oy - 14}" class="at-g">generation {g}</text>')
         cells.append(f'<text x="{ox + cw}" y="{oy - 14}" text-anchor="end" '
                      f'class="at-n">{len(pts[g])}</text>')
-        for lat, lon in pts[g]:
+        for lat, lon, side in pts[g]:
             cells.append(f'<circle cx="{px(lon):.1f}" cy="{py(lat):.1f}" r="1.9" '
-                         f'fill="var(--color-accent-700)" opacity="0.42"/>')
+                         f'fill="{SIDE_COLOUR.get(side, "var(--color-neutral-500)")}" '
+                         f'opacity="0.52"/>')
     span = f"{min(gens)}–{max(gens)}"
+    cells.append(legend(0, height - 6))
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {width} {height}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Small multiple maps, one per generation from {max(gens)} back to
@@ -475,6 +502,34 @@ SIDES = [("father", "Down the father's side only", "var(--color-accent-700)"),
          ("both", "On both sides", "var(--color-accent-400)"),
          ("mother", "Down the mother's side only", "var(--color-neutral-700)")]
 
+SIDE_COLOUR = {"father": "var(--color-accent-700)",
+               "both": "var(--color-accent-400)",
+               "mother": "var(--color-neutral-700)"}
+SIDE_WORD = {"father": "father's side", "both": "both sides", "mother": "mother's side",
+             None: "not on a traced line"}
+SIDE_COLOUR[None] = "var(--color-neutral-500)"
+
+
+def side_of(pid, sides):
+    """father / mother / both / None, for a person id."""
+    dad, mom = sides
+    in_dad, in_mom = pid in dad, pid in mom
+    if in_dad and in_mom:
+        return "both"
+    if in_dad:
+        return "father"
+    return "mother" if in_mom else None
+
+
+def legend(x, y, keys=("father", "both", "mother", None)):
+    out, cx = [], x
+    for k in keys:
+        out.append(f'<circle cx="{cx:.0f}" cy="{y - 4:.0f}" r="4" fill="{SIDE_COLOUR[k]}" '
+                   f'opacity="{0.55 if k is None else 1}"/>')
+        out.append(f'<text x="{cx + 9:.0f}" y="{y:.0f}" class="lg-t">{SIDE_WORD[k]}</text>')
+        cx += 24 + len(SIDE_WORD[k]) * 6.0
+    return "".join(out)
+
 
 def parental_sides():
     """Which half of the tree each ancestor sits in.
@@ -510,7 +565,7 @@ def parental_sides():
     return dad, mom
 
 
-def surnames_chart(rows):
+def surnames_chart(rows, sides):
     """When each family name entered this record and when it left it, by side.
 
     In a pedigree a surname survives only while sons carry it. The moment the
@@ -521,7 +576,7 @@ def surnames_chart(rows):
     is the interesting one: those names occur on both sides, which is the same
     pedigree collapse the record documents elsewhere.
     """
-    dad_set, mom_set = parental_sides()
+    dad_set, mom_set = sides
     people = collections.defaultdict(list)
     tally = collections.defaultdict(collections.Counter)
     for r in rows:
@@ -626,12 +681,110 @@ def surnames_chart(rows):
   </figure>"""
 
 
+CROSSING_ORDER = [
+    ("I · The Great Migration", "England, Wales & Scotland", ("England", "Wales", "Scotland")),
+    ("II · New Netherland", "the Dutch Republic", ("Netherlands",)),
+    ("III · The Palatines", "the Rhineland", ("Germany",)),
+    ("IV · The Ulster Scots", "Ulster & Ireland", ("Ulster", "Ireland")),
+    ("V · The Industrial Crossing", "born from 1800", ()),
+]
+
+
+def crossings_by_side(rows, sides):
+    """Which side of the family each of the five crossings arrived on.
+
+    Diverging from a centre line: the father's side left, the mother's right,
+    and the people who are ancestors on both sides in the middle. The Palatine
+    row is the one to read -- it has no left-hand bar at all.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gc", os.path.join(HERE, "generate-charts.py"))
+    gc = importlib.util.module_from_spec(spec)
+    argv, sys.argv = sys.argv, ["x"]
+    try:
+        spec.loader.exec_module(gc)
+    except SystemExit:
+        pass
+    finally:
+        sys.argv = argv
+
+    tally = collections.defaultdict(collections.Counter)
+    for r in rows:
+        nation = gc.nation_of(r["birth_place"])
+        if not nation or not gc.in_america(r["death_place"]):
+            continue
+        born, died = lifespan(r)
+        if (died or 9999) < 1607 or (born or 9999) < 1500:
+            continue
+        if (born or 0) >= 1800:
+            key = "V · The Industrial Crossing"
+        else:
+            key = next((k for k, _sub, nations in CROSSING_ORDER if nation in nations), None)
+        if key:
+            tally[key][side_of(r["pid"], sides)] += 1
+
+    peak = max((t["father"] + t["both"] + t["mother"]) for t in tally.values()) or 1
+    unit = 300 / peak
+    mid, top, row_h = W / 2 + 40, 74, 74
+    height = top + len(CROSSING_ORDER) * row_h + 40
+    out = [f'<line x1="{mid}" y1="{top - 26}" x2="{mid}" y2="{height - 46}" '
+           f'stroke="var(--color-divider)" stroke-width="1"/>',
+           f'<text x="{mid - 12}" y="{top - 34}" text-anchor="end" class="cs-ax">'
+           f"father&#8217;s side</text>",
+           f'<text x="{mid + 12}" y="{top - 34}" class="cs-ax">mother&#8217;s side</text>']
+
+    for i, (key, sub_label, _n) in enumerate(CROSSING_ORDER):
+        t = tally[key]
+        y = top + i * row_h
+        out.append(f'<text x="26" y="{y + 4:.0f}" class="cs-name">{key}</text>')
+        out.append(f'<text x="26" y="{y + 21:.0f}" class="cs-sub">{sub_label}</text>')
+        bh = 21
+        fw, mw, bw = t["father"] * unit, t["mother"] * unit, t["both"] * unit
+        out.append(f'<rect x="{mid - fw - bw / 2:.1f}" y="{y - bh / 2 + 4:.0f}" '
+                   f'width="{max(fw, 0.8):.1f}" height="{bh}" fill="{SIDE_COLOUR["father"]}" '
+                   f'opacity="0.82"/>')
+        if t["both"]:
+            out.append(f'<rect x="{mid - bw / 2:.1f}" y="{y - bh / 2 + 4:.0f}" '
+                       f'width="{bw:.1f}" height="{bh}" fill="{SIDE_COLOUR["both"]}" '
+                       f'opacity="0.9"/>')
+        out.append(f'<rect x="{mid + bw / 2:.1f}" y="{y - bh / 2 + 4:.0f}" '
+                   f'width="{max(mw, 0.8):.1f}" height="{bh}" fill="{SIDE_COLOUR["mother"]}" '
+                   f'opacity="0.82"/>')
+        out.append(f'<text x="{mid - fw - bw / 2 - 9:.1f}" y="{y + 9:.0f}" text-anchor="end" '
+                   f'class="cs-n">{t["father"]}</text>')
+        out.append(f'<text x="{mid + bw / 2 + mw + 9:.1f}" y="{y + 9:.0f}" class="cs-n">'
+                   f'{t["mother"]}</text>')
+        if t["both"]:
+            out.append(f'<text x="{mid:.0f}" y="{y + 34:.0f}" text-anchor="middle" '
+                       f'class="cs-both">{t["both"]} on both</text>')
+
+    pal = tally["III · The Palatines"]
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="Diverging bar chart of the five crossings. Bars extend left for
+         ancestors on the father's side and right for the mother's. The Great Migration
+         extends much further left than right. New Netherland and the Palatines extend only
+         to the right, and the Palatine row has no left-hand bar at all: none of those
+         ancestors are on the father's side.">
+      {"".join(out)}
+      {legend(26, height - 12, keys=("father", "both", "mother"))}
+    </svg>
+    <figcaption>Each crossing, by the side of the family it arrived on. The English came
+    down the father's side three to one. <b>The Palatines came down the mother's side and
+    nothing else</b> — {pal["mother"]} people, none of them on the father's side — and the
+    Dutch are nearly as lopsided. These two families did not just arrive in different
+    decades. They arrived from different countries, and only met in the 1970s.</figcaption>
+  </figure>"""
+
+
 CHARTS = {"lives": lives_chart, "occupancy": occupancy_chart, "flow": flow_map,
-          "atlas": atlas_chart, "surnames": surnames_chart}
+          "atlas": atlas_chart, "surnames": surnames_chart,
+          "crossings_side": crossings_by_side}
 
 
 def main():
     rows = load()
+    sides = parental_sides()
     page = open(PAGE, encoding="utf-8").read()
     written = []
     for name, fn in CHARTS.items():
@@ -639,7 +792,7 @@ def main():
         if begin not in page:
             print(f"  (no marker for {name}, skipped)")
             continue
-        block = fn(rows)
+        block = fn(rows, sides)
         page = re.sub(re.escape(begin) + r".*?" + re.escape(end),
                       lambda _: f"{begin}\n{block}\n{end}", page, flags=re.S)
         written.append(name)
