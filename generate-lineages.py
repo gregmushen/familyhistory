@@ -138,9 +138,27 @@ def e(s):
     return html.escape(s or "", quote=False)
 
 
-def person_line(p):
+FS_PERSON = "https://www.familysearch.org/tree/person/details/"
+
+
+def person_line(p, link_id=True):
+    """Name, dates, and the FamilySearch identifier the record was read from.
+
+    The identifier is the only thing here that lets a reader check the claim
+    themselves, so it is on every line rather than only on the subject.
+    """
     span = p.get("lifespan") or ""
-    return f"{e(p['name'])}" + (f' <span class="ln-yr">{e(span)}</span>' if span else "")
+    out = e(p["name"])
+    if span:
+        out += f' <span class="ln-yr">{e(span)}</span>'
+    pid = p.get("pid") or ""
+    if pid:
+        if link_id:
+            out += (f' <a class="ln-pid" href="{FS_PERSON}{e(pid)}" '
+                    f'rel="noopener" target="_blank">{e(pid)}</a>')
+        else:
+            out += f' <span class="ln-pid">{e(pid)}</span>'
+    return out
 
 
 def build_entries(people, couples, prev, member_of, page_text):

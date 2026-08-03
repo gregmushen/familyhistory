@@ -628,7 +628,7 @@ a.lin:hover, a.lin:focus-visible {
 a.lin:focus-visible { outline: 2px solid var(--color-accent-600); outline-offset: 2px; }
 
 #lineages .lead { max-width: 64ch; }
-#lineages > .note { margin-bottom: var(--space-6); }
+#lineages > .note { margin-bottom: var(--space-8); }
 
 .lineage {
   break-inside: avoid; margin: 0 0 var(--space-6);
@@ -645,6 +645,14 @@ a.lin:focus-visible { outline: 2px solid var(--color-accent-600); outline-offset
   font-variant-numeric: tabular-nums lining-nums;
 }
 .ln-place { font-size: 12px; line-height: 18px; color: var(--ink-58); margin: 0 0 6px; }
+a.ln-pid, .ln-pid {
+  font-family: var(--font-body); font-size: 10.5px; letter-spacing: 0.08em;
+  color: var(--ink-50); text-decoration: none; white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+a.ln-pid { border-bottom: 1px dotted var(--color-neutral-300); }
+a.ln-pid:hover { color: var(--color-accent-700); border-bottom-color: var(--color-accent-400); }
+.lineage h3 .ln-pid { font-size: 11px; }
 .ln-rel {
   font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--color-accent-700); margin: 0 0 var(--space-3);
@@ -658,7 +666,7 @@ a.lin:focus-visible { outline: 2px solid var(--color-accent-600); outline-offset
   width: 1px; background: var(--color-divider);
 }
 .ln-chain li {
-  position: relative; font-size: 13.5px; line-height: 21px;
+  position: relative; font-size: 13.5px; line-height: 21px; padding-right: 1rem;
   color: var(--ink-82); padding: 2px 0;
 }
 .ln-chain li::before {
@@ -671,18 +679,20 @@ a.lin:focus-visible { outline: 2px solid var(--color-accent-600); outline-offset
 .ln-chain li.ln-living { color: var(--ink-50); font-style: italic; }
 .ln-chain li.ln-living::before { background: none; border: 1px solid var(--color-neutral-400); }
 
-@media (min-width: 900px) { #lineages .ln-grid { columns: 2; column-gap: var(--space-7); } }
+@media (min-width: 900px) { #lineages .ln-grid { columns: 2; column-gap: var(--space-8); } }
 
 dialog.ln-dialog {
-  border: none; padding: 0; max-width: 34rem; width: calc(100% - 2rem);
+  border: none; padding: 0; position: relative;
+  max-width: 34rem; width: calc(100% - 2rem);
   border-radius: var(--radius-md); background: var(--color-surface);
   color: var(--color-text); box-shadow: 0 24px 60px rgba(0,0,0,.28);
 }
 dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
-.ln-dialog-inner { padding: var(--space-6) var(--space-6) var(--space-5); }
+.ln-dialog-inner { padding: var(--space-8) var(--space-8) var(--space-6); }
 .ln-dialog .lineage { border-top: none; padding-top: 0; margin: 0; }
+.ln-dialog .lineage h3 { padding-right: 2.4rem; }
 .ln-close {
-  position: absolute; top: 10px; right: 12px; border: none; background: none;
+  position: absolute; top: 14px; right: 16px; border: none; background: none;
   font: inherit; font-size: 22px; line-height: 1; cursor: pointer;
   color: var(--ink-58); padding: 6px 8px; border-radius: var(--radius-sm);
 }
