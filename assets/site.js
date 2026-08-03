@@ -92,11 +92,61 @@
     Array.prototype.forEach.call(kids, function (el) { io.observe(el); });
   }
 
+
+  /* Clicking a name opens its lineage without leaving the paragraph. The
+     appendix at the foot of the page is the only copy of the data; this reads
+     from it, so with JavaScript off every link is still a working anchor. */
+  function initLineage() {
+    var links = document.querySelectorAll('a.lin[data-lin]');
+    if (!links.length || typeof HTMLDialogElement === 'undefined') { return; }
+
+    var dlg = document.createElement('dialog');
+    dlg.className = 'ln-dialog';
+    dlg.innerHTML = '<div class="ln-dialog-inner">'
+      + '<button class="ln-close" type="button" aria-label="Close">&times;</button>'
+      + '<div data-ln-body></div></div>';
+    document.body.appendChild(dlg);
+
+    var body = dlg.querySelector('[data-ln-body]');
+    var opener = null;
+
+    function close() {
+      dlg.close();
+    }
+    dlg.querySelector('.ln-close').addEventListener('click', close);
+    dlg.addEventListener('click', function (ev) {
+      if (ev.target === dlg) { close(); }        /* backdrop */
+    });
+    dlg.addEventListener('close', function () {
+      if (opener) { opener.focus(); opener = null; }
+    });
+
+    Array.prototype.forEach.call(links, function (a) {
+      a.addEventListener('click', function (ev) {
+        var entry = document.getElementById('lin-' + a.getAttribute('data-lin'));
+        if (!entry) { return; }                  /* fall through to the anchor */
+        ev.preventDefault();
+        opener = a;
+        body.innerHTML = '';
+        body.appendChild(entry.cloneNode(true));
+        var more = document.createElement('a');
+        more.className = 'ln-more';
+        more.href = '#' + entry.id;
+        more.textContent = 'See it in the appendix';
+        more.addEventListener('click', close);
+        body.appendChild(more);
+        dlg.showModal();
+        dlg.querySelector('.ln-close').focus();
+      });
+    });
+  }
+
   function init() {
     applyDividers();
     initIndex();
     initProgress();
     initReveal();
+    initLineage();
   }
 
   if (document.readyState === 'loading') {

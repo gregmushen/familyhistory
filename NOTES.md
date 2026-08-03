@@ -102,3 +102,41 @@ against a page that still showed all the old numbers.
 
 Grepping the live page for a phrase you just added is the other honest check,
 and catches what a hash cannot explain.
+
+## Bold is load-bearing in four components
+
+`<b>` is not decoration everywhere on this page. Four CSS rules use it as the
+only structural hook they have:
+
+    .stat b          the four headline figures, at 44px
+    .person .who b   display:block — the name above a person's dates
+    .ladder b        the year column, in accent
+    .waypoints b     the year column, with tabular-nums for alignment
+
+The humanizing pass stripped bold from bare names and bare numbers, which is
+right in prose and wrong in all four of these. It shipped a page where the
+headline figures rendered as body text and every passenger name ran into its
+own dates: `James Chiltonc. 1556–1620`.
+
+If you strip emphasis again, restrict it to text inside `<p>`, and never touch a
+number. `grep -c 'class="who"><b>'` should return 21.
+
+## The lineage appendix
+
+`generate-lineages.py` writes the appendix between `LINEAGES:begin` / `:end` and
+links the first mention of each person in the body. It is the data; `site.js`
+clones an entry into a `<dialog>` on click, so the feature degrades to plain
+anchors with JavaScript off.
+
+Two things it guards that are easy to get wrong by hand: no living person is
+ever named (chains stop at the last death date and count the rest), and people
+who married in or are siblings of an ancestor are labelled collateral rather
+than given a fabricated descent.
+
+`ALIASES` exists because the tree stores maiden names while the record uses the
+name history knows: without it "Rebecca Nurse" matches no record and gets no
+entry. Aliases are deduplicated against real names by PID, or the same person
+would appear twice with the same `id`.
+
+All three generators support `--check`, which exits non-zero when the file on
+disk differs from what the database would produce.
