@@ -706,3 +706,8 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
   dialog.ln-dialog[open] { animation: ln-in .16s ease-out; }
   @keyframes ln-in { from { opacity: 0; transform: translateY(6px); } }
 }
+
+.table td.num, .table th:nth-child(n+3) {
+  text-align: right; white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums;
+}
