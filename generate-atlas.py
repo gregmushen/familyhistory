@@ -469,14 +469,61 @@ def surname(name):
     return out if len(out) > 1 and out[0].isupper() else None
 
 
+LAST_COUPLE = "PXFV-YG6_PXFK-QCT"
+
+SIDES = [("father", "Down the father's side only", "var(--color-accent-700)"),
+         ("both", "On both sides", "var(--color-accent-400)"),
+         ("mother", "Down the mother's side only", "var(--color-neutral-700)")]
+
+
+def parental_sides():
+    """Which half of the tree each ancestor sits in.
+
+    Climbs from each member of the last couple separately. A person can be in
+    both sets, and 527 of them are, which is the pedigree collapse the record
+    documents elsewhere -- so this returns three answers, not two.
+    """
+    db = connect(DB)
+    db.row_factory = sqlite3.Row
+    couples = {r["couple_id"]: dict(r) for r in db.execute("SELECT * FROM fs_couples")}
+    up = collections.defaultdict(list)
+    for r in db.execute("SELECT * FROM fs_edges"):
+        up[r["child_couple_id"]].append((r["parent_couple_id"], r["via"]))
+    db.close()
+
+    def climb(starts):
+        seen, queue, people = set(starts), collections.deque(starts), set()
+        while queue:
+            cur = queue.popleft()
+            c = couples.get(cur, {})
+            for key in ("parent1_pid", "parent2_pid"):
+                if c.get(key):
+                    people.add(c[key])
+            for parent, _ in up.get(cur, []):
+                if parent not in seen:
+                    seen.add(parent)
+                    queue.append(parent)
+        return people
+
+    dad = climb([p for p, via in up.get(LAST_COUPLE, []) if via == "parent1"])
+    mom = climb([p for p, via in up.get(LAST_COUPLE, []) if via == "parent2"])
+    return dad, mom
+
+
 def surnames_chart(rows):
-    """When each family name entered this record and when it left it.
+    """When each family name entered this record and when it left it, by side.
 
     In a pedigree a surname survives only while sons carry it. The moment the
     descent passes through a daughter the name stops being an ancestor's name,
     which is why almost every bar on this chart ends in a woman.
+
+    Names are grouped by which half of the tree they belong to. The middle group
+    is the interesting one: those names occur on both sides, which is the same
+    pedigree collapse the record documents elsewhere.
     """
+    dad_set, mom_set = parental_sides()
     people = collections.defaultdict(list)
+    tally = collections.defaultdict(collections.Counter)
     for r in rows:
         # Living people are excluded outright. A dot on this axis is a birth
         # year, and the record does not publish those for the living.
@@ -484,72 +531,98 @@ def surnames_chart(rows):
             continue
         s = surname(r["name"])
         born, _ = lifespan(r)
-        if s and born:
-            people[s].append((born, r["gender"], r["name"], r["generation"]))
+        if not s or not born:
+            continue
+        people[s].append((born, r["gender"], r["name"], r["generation"]))
+        in_dad, in_mom = r["pid"] in dad_set, r["pid"] in mom_set
+        if in_dad and in_mom:
+            tally[s]["both"] += 1
+        elif in_dad:
+            tally[s]["father"] += 1
+        elif in_mom:
+            tally[s]["mother"] += 1
+
+    def side_of(name):
+        c = tally[name]
+        if c["both"] or (c["father"] and c["mother"]):
+            return "both"
+        if c["father"]:
+            return "father"
+        return "mother" if c["mother"] else None
 
     # Sort on the year alone: generation can be None and would break a plain
     # tuple comparison on ties.
     fams = {s: sorted(v, key=lambda t: t[0]) for s, v in people.items() if len(v) >= 5}
     fams = {s: v for s, v in fams.items() if v[-1][0] >= 1550}
-    # Given names that reach this point are always a mangled record, never a
-    # family: "Howell T William" and its kind. Counting them would put a name
-    # on the chart that nobody in this tree was ever called.
     fams = {s: v for s, v in fams.items() if s not in GIVEN_NAME_ARTEFACTS}
-    order = sorted(fams, key=lambda s: (-fams[s][-1][0], s))[:46]
+    fams = {s: v for s, v in fams.items() if side_of(s)}
+
+    groups = []
+    for key, heading, colour in SIDES:
+        members = sorted([s for s in fams if side_of(s) == key],
+                         key=lambda s: (-fams[s][-1][0], s))
+        groups.append((key, heading, colour, members[:14], len(members)))
 
     lo, hi = 1500, 2000
-    pad_l, pad_r, top, row_h = 132, 118, 40, 15.5
+    pad_l, pad_r, top, row_h = 132, 118, 34, 15.5
     span = W - pad_l - pad_r
-    height = top + len(order) * row_h + 34
+    slots = sum(len(m) + 2.5 for *_, m, _ in groups)
+    height = top + slots * row_h + 34
     x = lambda y: pad_l + span * (min(max(y, lo), hi) - lo) / (hi - lo)
 
-    out, ended_female = [], 0
-    for i, s in enumerate(order):
-        v = fams[s]
-        y = top + i * row_h
-        first, last = v[0][0], v[-1][0]
-        term_gender = v[-1][1]
-        if term_gender == "FEMALE":
-            ended_female += 1
-        out.append(f'<line x1="{x(first):.1f}" y1="{y:.1f}" x2="{x(last):.1f}" y2="{y:.1f}" '
-                   f'stroke="var(--color-accent-600)" stroke-width="3.4" opacity="0.30" '
-                   f'stroke-linecap="round"/>')
-        for born, gender, _, _ in v:
-            out.append(f'<circle cx="{x(born):.1f}" cy="{y:.1f}" r="1.7" '
-                       f'fill="var(--color-accent-800)" opacity="0.55"/>')
-        colour = ("var(--color-accent)" if term_gender == "FEMALE"
-                  else "var(--color-neutral-800)")
-        out.append(f'<circle cx="{x(last):.1f}" cy="{y:.1f}" r="3.5" fill="{colour}"/>')
-        out.append(f'<text x="{pad_l - 10}" y="{y + 4:.1f}" text-anchor="end" '
-                   f'class="sn-name">{s}</text>')
-        # "Carries on" would be a claim the chart cannot support: living people
-        # are excluded, so a name ending on a man usually means his daughter is
-        # simply not drawn. Say what is true instead -- the record stops.
-        out.append(f'<text x="{x(last) + 9:.1f}" y="{y + 4:.1f}" class="sn-end">'
-                   f'{"ends in a daughter" if term_gender == "FEMALE" else "record stops"}'
-                   f'</text>')
+    out, ended_female, shown, i = [], 0, 0, 0.0
+    for key, heading, colour, members, total in groups:
+        out.append(f'<text x="4" y="{top + i * row_h + 4:.1f}" class="sn-head">{heading}'
+                   f' <tspan class="sn-headn">{total} names</tspan></text>')
+        i += 1.6
+        for s in members:
+            v = fams[s]
+            y = top + i * row_h
+            first, last, term = v[0][0], v[-1][0], v[-1][1]
+            if term == "FEMALE":
+                ended_female += 1
+            shown += 1
+            out.append(f'<line x1="{x(first):.1f}" y1="{y:.1f}" x2="{x(last):.1f}" '
+                       f'y2="{y:.1f}" stroke="{colour}" stroke-width="3.4" opacity="0.32" '
+                       f'stroke-linecap="round"/>')
+            for born, _g, _n, _gen in v:
+                out.append(f'<circle cx="{x(born):.1f}" cy="{y:.1f}" r="1.7" '
+                           f'fill="{colour}" opacity="0.62"/>')
+            dot = "var(--color-accent)" if term == "FEMALE" else "var(--color-neutral-800)"
+            out.append(f'<circle cx="{x(last):.1f}" cy="{y:.1f}" r="3.5" fill="{dot}"/>')
+            out.append(f'<text x="{pad_l - 10}" y="{y + 4:.1f}" text-anchor="end" '
+                       f'class="sn-name">{s}</text>')
+            out.append(f'<text x="{x(last) + 9:.1f}" y="{y + 4:.1f}" class="sn-end">'
+                       f'{"ends in a daughter" if term == "FEMALE" else "record stops"}'
+                       f'</text>')
+            i += 1
+        i += 0.9
 
-    axis_y = top + len(order) * row_h + 12
+    axis_y = top + i * row_h - 4
     axis = "".join(
-        f'<text x="{x(t):.1f}" y="{axis_y + 13}" text-anchor="middle" class="ax">{t}</text>'
+        f'<text x="{x(t):.1f}" y="{axis_y + 13:.0f}" text-anchor="middle" class="ax">{t}</text>'
         for t in range(1550, 2001, 50))
+    counts = {k: n for k, _h, _c, _m, n in groups}
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
-         aria-label="One bar per family name, running from the birth year of its earliest
-         ancestor to its latest, sorted by when the name leaves the record. A filled dot
-         marks the last person to carry it. Almost every dot marks a woman, because a
+         aria-label="Family names in three groups: those that occur only on the father's
+         side, those on both sides, and those only on the mother's side. Each bar runs from
+         the birth year of the earliest ancestor of that name to the latest, and a filled
+         dot marks the last person to carry it. Almost every dot marks a woman, because a
          surname stops being an ancestral name as soon as the descent passes through a
          daughter.">
       {"".join(out)}
-      <line x1="{pad_l}" y1="{axis_y}" x2="{W - pad_r}" y2="{axis_y}"
+      <line x1="{pad_l}" y1="{axis_y:.0f}" x2="{W - pad_r}" y2="{axis_y:.0f}"
             stroke="var(--color-divider)" stroke-width="1"/>
       {axis}
     </svg>
-    <figcaption>The {len(order)} family names that stayed in this record longest, each
-    drawn from its earliest ancestor's birth to its latest. Small dots are people; the
-    filled dot is the last one. <b>{ended_female} of these {len(order)} names end in a
-    woman</b> — the daughter who married, took another name, and carried the line onward
-    under it.</figcaption>
+    <figcaption>Family names by which half of the tree they belong to:
+    <b>{counts['father']}</b> occur only on the father's side, <b>{counts['mother']}</b>
+    only on the mother's, and <b>{counts['both']}</b> on both. The fourteen longest-running
+    of each are drawn, earliest birth to latest. Small dots are people, the filled dot is
+    the last one, and {ended_female} of the {shown} names drawn end in a woman. The middle
+    group is the pedigree collapse in another form — those names reach this record twice,
+    down each side, and had to be the same family before the two sides ever met.</figcaption>
   </figure>"""
 
 
