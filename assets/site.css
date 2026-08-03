@@ -808,3 +808,25 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
 }
 .story ul.qs li { margin-bottom: 6px; }
 .story ul.qs li::marker { color: var(--color-accent-600); }
+
+/* — the chain of authority, and its break — */
+.chain {
+  margin: var(--space-6) 0; padding: var(--space-4) var(--space-6);
+  border-left: 2px solid var(--color-accent-400); max-width: 62ch;
+}
+.chain > span {
+  display: inline-block; font-family: var(--font-heading); font-size: 19px;
+  color: var(--color-accent-800); letter-spacing: -0.01em;
+}
+.chain > span + span::before {
+  content: "→"; display: inline-block; margin: 0 12px;
+  color: var(--color-neutral-400); font-size: 14px; vertical-align: 2px;
+}
+.chain > span:last-of-type { color: var(--ink-62); }
+.chain-note {
+  margin: var(--space-3) 0 0; font-size: 13px; line-height: 22px; color: var(--ink-58);
+}
+@media (max-width: 620px) {
+  .chain > span { font-size: 16px; }
+  .chain > span + span::before { margin: 0 7px; }
+}
