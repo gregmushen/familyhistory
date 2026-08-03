@@ -834,3 +834,23 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
 .chain.chain-3 > span { font-size: 22px; color: var(--color-accent-800); }
 .chain.chain-3 > span:last-of-type { color: var(--color-accent-800); }
 .chain.chain-3 > span + span::before { content: "→"; margin: 0 14px; }
+
+.story ol.steps {
+  margin: var(--space-4) 0 var(--space-6); padding-left: 0; max-width: 64ch;
+  list-style: none; counter-reset: step;
+}
+.story ol.steps li {
+  position: relative; padding-left: 40px; margin-bottom: 10px;
+  font-size: 15px; line-height: 26px; color: var(--ink-82);
+}
+.story ol.steps li::before {
+  counter-increment: step; content: counter(step);
+  position: absolute; left: 0; top: 1px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  color: var(--color-accent-700); width: 24px; text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.story ol.steps li::after {
+  content: ""; position: absolute; left: 30px; top: 11px; width: 5px; height: 1px;
+  background: var(--color-accent-400);
+}
