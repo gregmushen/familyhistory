@@ -93,14 +93,20 @@ def lives_chart(rows, sides):
         # A death in America before Jamestown is a place-name artefact, not a life.
         if not in_america(r["death_lat"], r["death_lon"]) or died < 1607:
             continue
-        people.append((born, died, side_of(r["pid"], sides)))
+        # Ancestors only. The walk pulled in the whole sibling cohort at one
+        # generation -- 435 people, every one of them generation 8 -- and
+        # counting them here inflated "alive at the Revolution" from 90 to 305.
+        side = side_of(r["pid"], sides)
+        if side is None:
+            continue
+        people.append((born, died, side))
     people.sort(key=lambda t: t[0])
 
     lo, hi = 1560, 2000
     pad_l, pad_r = 116, 26
     top = 84
     span = W - pad_l - pad_r
-    row_h = 0.46
+    row_h = 0.62
     height = top + len(people) * row_h + 78
     x = lambda year: pad_l + span * (year - lo) / (hi - lo)
 
@@ -121,7 +127,7 @@ def lives_chart(rows, sides):
         y = top + i * row_h
         colour = SIDE_COLOUR.get(side, "var(--color-neutral-500)")
         out.append(f'<line x1="{x(born):.2f}" y1="{y:.2f}" x2="{x(died):.2f}" y2="{y:.2f}" '
-                   f'stroke="{colour}" stroke-width="0.42" opacity="0.62"/>')
+                   f'stroke="{colour}" stroke-width="0.62" opacity="0.72"/>')
 
     # How many of these people were alive in each event year.
     alive = {}
@@ -180,7 +186,7 @@ def lives_chart(rows, sides):
             stroke="var(--color-divider)" stroke-width="1"/>
       {axis}
     </svg>
-    <figcaption>Every ancestor who died in America, one line each, birth to death,
+    <figcaption>Every <em>ancestor</em> who died in America, one line each, birth to death,
     ordered by year of birth. {len(people)} lives. The shaded columns are the wars:
     <b>{alive[1775]}</b> of these people were alive when the Revolution began and
     <b>{alive[1861]}</b> when the Civil War did. Read the right-hand edge — the family does
@@ -223,6 +229,8 @@ def occupancy_chart(rows, sides):
     for r in rows:
         born, died = lifespan(r)
         if not died or died < 1607 or not in_america(r["death_lat"], r["death_lon"]):
+            continue
+        if side_of(r["pid"], sides) is None:
             continue
         place = r["death_place"] or ""
         name = next((label for label, keys in COLONIES if any(k in place for k in keys)), None)
@@ -306,6 +314,8 @@ def flow_map(rows, sides):
     for r in rows:
         born, died = lifespan(r)
         if not died or died < 1607 or not in_america(r["death_lat"], r["death_lon"]):
+            continue
+        if side_of(r["pid"], sides) is None:
             continue
         dest = region(r["death_place"])
         if dest:
@@ -406,9 +416,9 @@ def atlas_chart(rows, sides):
         born, died = lifespan(r)
         if not died or died < 1607 or r["generation"] is None:
             continue
-        if in_america(r["death_lat"], r["death_lon"]):
-            pts[r["generation"]].append(
-                (r["death_lat"], r["death_lon"], side_of(r["pid"], sides)))
+        side = side_of(r["pid"], sides)
+        if side and in_america(r["death_lat"], r["death_lon"]):
+            pts[r["generation"]].append((r["death_lat"], r["death_lon"], side))
 
     gens = sorted([g for g, v in pts.items() if len(v) >= 8], reverse=True)
     if not gens:
@@ -502,12 +512,12 @@ SIDES = [("father", "Down the father's side only", "var(--color-accent-700)"),
          ("both", "On both sides", "var(--color-accent-400)"),
          ("mother", "Down the mother's side only", "var(--color-neutral-700)")]
 
+# Three hues that survive being drawn as a half-pixel hairline: a warm brown, a
+# near-black, and a light gold between them.
 SIDE_COLOUR = {"father": "var(--color-accent-700)",
                "both": "var(--color-accent-400)",
-               "mother": "var(--color-neutral-700)"}
-SIDE_WORD = {"father": "father's side", "both": "both sides", "mother": "mother's side",
-             None: "not on a traced line"}
-SIDE_COLOUR[None] = "var(--color-neutral-500)"
+               "mother": "var(--color-neutral-900)"}
+SIDE_WORD = {"father": "father's side", "both": "both sides", "mother": "mother's side"}
 
 
 def side_of(pid, sides):
@@ -521,11 +531,10 @@ def side_of(pid, sides):
     return "mother" if in_mom else None
 
 
-def legend(x, y, keys=("father", "both", "mother", None)):
+def legend(x, y, keys=("father", "both", "mother")):
     out, cx = [], x
     for k in keys:
-        out.append(f'<circle cx="{cx:.0f}" cy="{y - 4:.0f}" r="4" fill="{SIDE_COLOUR[k]}" '
-                   f'opacity="{0.55 if k is None else 1}"/>')
+        out.append(f'<circle cx="{cx:.0f}" cy="{y - 4:.0f}" r="4" fill="{SIDE_COLOUR[k]}"/>')
         out.append(f'<text x="{cx + 9:.0f}" y="{y:.0f}" class="lg-t">{SIDE_WORD[k]}</text>')
         cx += 24 + len(SIDE_WORD[k]) * 6.0
     return "".join(out)
@@ -720,8 +729,9 @@ def crossings_by_side(rows, sides):
             key = "V · The Industrial Crossing"
         else:
             key = next((k for k, _sub, nations in CROSSING_ORDER if nation in nations), None)
-        if key:
-            tally[key][side_of(r["pid"], sides)] += 1
+        side = side_of(r["pid"], sides)
+        if key and side:
+            tally[key][side] += 1
 
     peak = max((t["father"] + t["both"] + t["mother"]) for t in tally.values()) or 1
     unit = 300 / peak
