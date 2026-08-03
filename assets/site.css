@@ -775,10 +775,12 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
 @media (max-width: 700px) { .thesis-line { font-size: 21px; line-height: 31px; } }
 
 .standfirst {
-  margin: var(--space-3) 0 var(--space-6); max-width: 46ch;
-  font-family: var(--font-body); font-size: 15.5px; line-height: 26px;
-  color: var(--ink-62); letter-spacing: 0.005em;
+  margin: var(--space-4) 0 var(--space-6); max-width: 58ch;
+  font-family: var(--font-body); font-size: 17px; line-height: 29px;
+  color: var(--ink-70); letter-spacing: 0.004em;
 }
+.standfirst b { color: var(--color-text); font-weight: 600; }
+@media (max-width: 700px) { .standfirst { font-size: 15.5px; line-height: 26px; } }
 
 .chart-fig .lg-t {
   font-family: var(--font-body); font-size: 11px; fill: var(--ink-62);
