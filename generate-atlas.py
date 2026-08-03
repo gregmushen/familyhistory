@@ -90,7 +90,7 @@ def lives_chart(rows, sides):
         born, died = lifespan(r)
         if not born or not died or died < born or died - born > 110:
             continue
-        # A death in America before Jamestown is a place-name artefact, not a life.
+        # A death in America before Jamestown is a place-name artifact, not a life.
         if not in_america(r["death_lat"], r["death_lon"]) or died < 1607:
             continue
         # Ancestors only. The walk pulled in the whole sibling cohort at one
@@ -125,9 +125,9 @@ def lives_chart(rows, sides):
 
     for i, (born, died, side) in enumerate(people):
         y = top + i * row_h
-        colour = SIDE_COLOUR.get(side, "var(--color-neutral-500)")
+        color = SIDE_COLOR.get(side, "var(--color-neutral-500)")
         out.append(f'<line x1="{x(born):.2f}" y1="{y:.2f}" x2="{x(died):.2f}" y2="{y:.2f}" '
-                   f'stroke="{colour}" stroke-width="0.62" opacity="0.72"/>')
+                   f'stroke="{color}" stroke-width="0.62" opacity="0.72"/>')
 
     # How many of these people were alive in each event year.
     alive = {}
@@ -257,7 +257,7 @@ def occupancy_chart(rows, sides):
             # visible cell on the whole grid.
             op = 0 if not n else 0.12 + 0.78 * math.sqrt(n / peak)
             if n:
-                # The cell is banded by side, so the colour mix reads as
+                # The cell is banded by side, so the color mix reads as
                 # composition while the opacity still reads as volume.
                 ch2 = cell * 0.62
                 oy2 = y
@@ -267,7 +267,7 @@ def occupancy_chart(rows, sides):
                         continue
                     hh = ch2 * part / n
                     rows_svg.append(f'<rect x="{x}" y="{oy2:.2f}" width="{cell}" '
-                                    f'height="{hh:.2f}" fill="{SIDE_COLOUR[key]}" '
+                                    f'height="{hh:.2f}" fill="{SIDE_COLOR[key]}" '
                                     f'opacity="{op:.3f}"/>')
                     oy2 += hh
             if n:
@@ -355,7 +355,7 @@ def flow_map(rows, sides):
         cx, cy = mx - dy / dist * bow, my + dx / dist * bow
         dominant = route_side[(a, b)].most_common(1)[0][0] if route_side[(a, b)] else None
         arcs.append(f'<path d="M {x1:.1f} {y1:.1f} Q {cx:.1f} {cy:.1f} {x2:.1f} {y2:.1f}" '
-                    f'fill="none" stroke="{SIDE_COLOUR[dominant]}" '
+                    f'fill="none" stroke="{SIDE_COLOR[dominant]}" '
                     f'stroke-width="{0.7 + 2.6 * math.sqrt(n):.2f}" opacity="0.5" '
                     f'stroke-linecap="round"/>')
 
@@ -442,7 +442,7 @@ def flow_map(rows, sides):
       {legend(pad, oy + 34)}
     </svg>
     <figcaption>Movement inside North America: {total} people whose birthplace and place of
-    death are in different colonies or states, on {len(flows)} routes, each arc coloured by
+    death are in different colonies or states, on {len(flows)} routes, each arc colored by
     the side of the family that mostly walked it. Dots sit at the mean
     of the coordinates actually recorded in each place, and are sized by how many ancestors
     died there. The thickest line on the map is Massachusetts to Connecticut. Almost every
@@ -493,7 +493,7 @@ def atlas_chart(rows, sides):
                      f'class="at-n">{len(pts[g])}</text>')
         for lat, lon, side in pts[g]:
             cells.append(f'<circle cx="{px(lon):.1f}" cy="{py(lat):.1f}" r="1.9" '
-                         f'fill="{SIDE_COLOUR.get(side, "var(--color-neutral-500)")}" '
+                         f'fill="{SIDE_COLOR.get(side, "var(--color-neutral-500)")}" '
                          f'opacity="0.52"/>')
     span = f"{min(gens)}–{max(gens)}"
     cells.append(legend(0, height - 6))
@@ -522,7 +522,7 @@ PARTICLES = {"de", "del", "van", "von", "der", "den", "le", "la", "du", "des",
 
 # Surnames the parser produces only from broken records, where a given name sits
 # in the final position because the real family name was never entered.
-GIVEN_NAME_ARTEFACTS = {"William", "John", "Thomas", "Robert", "Richard", "Henry",
+GIVEN_NAME_ARTIFACTS = {"William", "John", "Thomas", "Robert", "Richard", "Henry",
                         "Elizabeth", "Margaret", "Mary", "Anne", "Ann", "James"}
 
 
@@ -560,7 +560,7 @@ SIDES = [("father", "Down the father's side only", "var(--color-accent-700)"),
 
 # Three hues that survive being drawn as a half-pixel hairline: a warm brown, a
 # near-black, and a light gold between them.
-SIDE_COLOUR = {"father": "var(--color-accent-700)",
+SIDE_COLOR = {"father": "var(--color-accent-700)",
                "both": "var(--color-accent-400)",
                "mother": "var(--color-neutral-900)"}
 SIDE_WORD = {"father": "father's side", "both": "both sides", "mother": "mother's side"}
@@ -580,7 +580,7 @@ def side_of(pid, sides):
 def legend(x, y, keys=("father", "both", "mother")):
     out, cx = [], x
     for k in keys:
-        out.append(f'<circle cx="{cx:.0f}" cy="{y - 4:.0f}" r="4" fill="{SIDE_COLOUR[k]}"/>')
+        out.append(f'<circle cx="{cx:.0f}" cy="{y - 4:.0f}" r="4" fill="{SIDE_COLOR[k]}"/>')
         out.append(f'<text x="{cx + 9:.0f}" y="{y:.0f}" class="lg-t">{SIDE_WORD[k]}</text>')
         cx += 24 + len(SIDE_WORD[k]) * 6.0
     return "".join(out)
@@ -664,14 +664,14 @@ def surnames_chart(rows, sides):
     # tuple comparison on ties.
     fams = {s: sorted(v, key=lambda t: t[0]) for s, v in people.items() if len(v) >= 5}
     fams = {s: v for s, v in fams.items() if v[-1][0] >= 1550}
-    fams = {s: v for s, v in fams.items() if s not in GIVEN_NAME_ARTEFACTS}
+    fams = {s: v for s, v in fams.items() if s not in GIVEN_NAME_ARTIFACTS}
     fams = {s: v for s, v in fams.items() if side_of(s)}
 
     groups = []
-    for key, heading, colour in SIDES:
+    for key, heading, color in SIDES:
         members = sorted([s for s in fams if side_of(s) == key],
                          key=lambda s: (-fams[s][-1][0], s))
-        groups.append((key, heading, colour, members[:14], len(members)))
+        groups.append((key, heading, color, members[:14], len(members)))
 
     lo, hi = 1500, 2000
     pad_l, pad_r, top, row_h = 132, 118, 34, 15.5
@@ -681,7 +681,7 @@ def surnames_chart(rows, sides):
     x = lambda y: pad_l + span * (min(max(y, lo), hi) - lo) / (hi - lo)
 
     out, ended_female, shown, i = [], 0, 0, 0.0
-    for key, heading, colour, members, total in groups:
+    for key, heading, color, members, total in groups:
         out.append(f'<text x="4" y="{top + i * row_h + 4:.1f}" class="sn-head">{heading}'
                    f' <tspan class="sn-headn">{total} names</tspan></text>')
         i += 1.6
@@ -693,11 +693,11 @@ def surnames_chart(rows, sides):
                 ended_female += 1
             shown += 1
             out.append(f'<line x1="{x(first):.1f}" y1="{y:.1f}" x2="{x(last):.1f}" '
-                       f'y2="{y:.1f}" stroke="{colour}" stroke-width="3.4" opacity="0.32" '
+                       f'y2="{y:.1f}" stroke="{color}" stroke-width="3.4" opacity="0.32" '
                        f'stroke-linecap="round"/>')
             for born, _g, _n, _gen in v:
                 out.append(f'<circle cx="{x(born):.1f}" cy="{y:.1f}" r="1.7" '
-                           f'fill="{colour}" opacity="0.62"/>')
+                           f'fill="{color}" opacity="0.62"/>')
             dot = "var(--color-accent)" if term == "FEMALE" else "var(--color-neutral-800)"
             out.append(f'<circle cx="{x(last):.1f}" cy="{y:.1f}" r="3.5" fill="{dot}"/>')
             out.append(f'<text x="{pad_l - 10}" y="{y + 4:.1f}" text-anchor="end" '
@@ -748,7 +748,7 @@ CROSSING_ORDER = [
 def crossings_by_side(rows, sides):
     """Which side of the family each of the five crossings arrived on.
 
-    Diverging from a centre line: the father's side left, the mother's right,
+    Diverging from a center line: the father's side left, the mother's right,
     and the people who are ancestors on both sides in the middle. The Palatine
     row is the one to read -- it has no left-hand bar at all.
     """
@@ -797,14 +797,14 @@ def crossings_by_side(rows, sides):
         bh = 21
         fw, mw, bw = t["father"] * unit, t["mother"] * unit, t["both"] * unit
         out.append(f'<rect x="{mid - fw - bw / 2:.1f}" y="{y - bh / 2 + 4:.0f}" '
-                   f'width="{max(fw, 0.8):.1f}" height="{bh}" fill="{SIDE_COLOUR["father"]}" '
+                   f'width="{max(fw, 0.8):.1f}" height="{bh}" fill="{SIDE_COLOR["father"]}" '
                    f'opacity="0.82"/>')
         if t["both"]:
             out.append(f'<rect x="{mid - bw / 2:.1f}" y="{y - bh / 2 + 4:.0f}" '
-                       f'width="{bw:.1f}" height="{bh}" fill="{SIDE_COLOUR["both"]}" '
+                       f'width="{bw:.1f}" height="{bh}" fill="{SIDE_COLOR["both"]}" '
                        f'opacity="0.9"/>')
         out.append(f'<rect x="{mid + bw / 2:.1f}" y="{y - bh / 2 + 4:.0f}" '
-                   f'width="{max(mw, 0.8):.1f}" height="{bh}" fill="{SIDE_COLOUR["mother"]}" '
+                   f'width="{max(mw, 0.8):.1f}" height="{bh}" fill="{SIDE_COLOR["mother"]}" '
                    f'opacity="0.82"/>')
         out.append(f'<text x="{mid - fw - bw / 2 - 9:.1f}" y="{y + 9:.0f}" text-anchor="end" '
                    f'class="cs-n">{t["father"]}</text>')

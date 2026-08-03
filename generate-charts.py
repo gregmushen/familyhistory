@@ -11,7 +11,7 @@ finishes updates them. Output is written between HTML markers in index.html:
     <!-- CHART:crossings -->  …generated…  <!-- /CHART:crossings -->
 
 No JavaScript, no chart library — the page has neither and should keep neither.
-Colours come from the design-system tokens, not hex.
+Colors come from the design-system tokens, not hex.
 """
 import collections
 import os
@@ -122,7 +122,7 @@ def load():
         if g and r["generation"] is not None:
             stream[r["generation"]][g] += 1
 
-    # A death in America before Jamestown is a place-name standardiser artefact.
+    # A death in America before Jamestown is a place-name standardiser artifact.
     imm = [r for r in rows
            if nation_of(r["birth_place"]) and in_america(r["death_place"])
            and (year(r["death_date"], "") or 9999) >= 1607
@@ -231,7 +231,7 @@ def smooth(points):
 
 def streamgraph(stream):
     """Composition by generation. Height is constant and each generation is
-    normalised to its own total, because absolute widths made the later generations
+    normalized to its own total, because absolute widths made the later generations
     (n=28, n=12, n=3) invisible, which is where the whole westward story is.
     Cohort size is carried by the printed n above each column instead."""
     gens = [g for g in sorted(stream, reverse=True) if 2 <= g <= 14
@@ -242,7 +242,7 @@ def streamgraph(stream):
 
     lower = [PAD_T + inner_h] * len(gens)
     parts = []
-    for name, colour, _ in REGIONS:
+    for name, color, _ in REGIONS:
         upper = []
         for i, g in enumerate(gens):
             tot = sum(stream[g].values())
@@ -250,7 +250,7 @@ def streamgraph(stream):
             upper.append(lower[i] - share * inner_h)
         fwd = smooth(list(zip(xs, upper)))
         back = smooth(list(zip(reversed(xs), reversed(lower)))).replace("M", "L", 1)
-        parts.append(f'<path d="{fwd} {back} Z" fill="{colour}"/>')
+        parts.append(f'<path d="{fwd} {back} Z" fill="{color}"/>')
         lower = upper[:]
 
     labels = "".join(
@@ -359,7 +359,7 @@ def sankey(flows):
     is where England went. Instead the canvas is tall enough that England's
     86% can be a slab and the six minority origins still get separated nodes
     and readable labels. Gaps are fixed in pixels rather than proportional, so
-    a three-person origin is still a labelled node."""
+    a three-person origin is still a labeled node."""
     W = 1000
     TOP, BOT, NODE_W, GAP = 42, 34, 12, 30
     LX, RX = 176, W - 216
@@ -388,7 +388,7 @@ def sankey(flows):
     L, R = stack(src, src_tot), stack(dst, dst_tot)
 
     ribbons = []
-    for name, colour, _ in ORIGINS:
+    for name, color, _ in ORIGINS:
         for dname, _ in LANDINGS:
             n = flows.get((name, dname), 0)
             if not n:
@@ -403,14 +403,14 @@ def sankey(flows):
                 f'C {cx} {y0:.1f} {cx} {y1:.1f} {RX} {y1:.1f} '
                 f'L {RX} {y1 + h:.1f} '
                 f'C {cx} {y1 + h:.1f} {cx} {y0 + h:.1f} {LX + NODE_W} {y0 + h:.1f} Z" '
-                f'fill="{colour}" opacity="0.44"/>')
+                f'fill="{color}" opacity="0.44"/>')
 
     nodes = []
-    for name, colour, _ in src:
+    for name, color, _ in src:
         y, h, _ = L[name]
         ty = y + h / 2
         nodes.append(
-            f'<rect x="{LX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 2):.1f}" fill="{colour}"/>'
+            f'<rect x="{LX}" y="{y:.1f}" width="{NODE_W}" height="{max(h, 2):.1f}" fill="{color}"/>'
             f'<text x="{LX - 12}" y="{ty:.1f}" text-anchor="end" class="sk-lab">{name}</text>'
             f'<text x="{LX - 12}" y="{ty + 14:.1f}" text-anchor="end" class="sk-n">'
             f'{src_tot[name]} · {100 * src_tot[name] / total:.0f}%</text>')
@@ -457,7 +457,7 @@ LINE_BANDS = [
 
 def alluvial(lines):
     """Ancestral lines converging. Reading right, each generation halves as
-    marriages merge two lines into one, and the coloured bands -- lines that
+    marriages merge two lines into one, and the colored bands -- lines that
     still sit at or above an immigrant, so still belong to one crossing --
     dissolve into a single American stream."""
     gens = [g for g in sorted(lines, reverse=True) if 0 <= g <= 14]
@@ -467,13 +467,13 @@ def alluvial(lines):
     peak = max(sum(lines[g].values()) for g in gens)
     xs = [PAD_L + (W - PAD_L - PAD_R) * i / (len(gens) - 1) for i in range(len(gens))]
 
-    # Normalised. Absolute widths made the funnel the whole figure and squeezed
+    # Normalized. Absolute widths made the funnel the whole figure and squeezed
     # the merge -- which is the thing being shown -- into a thread at the right.
     # The line counts printed along the top carry the funnel instead.
     totals = [sum(lines[g].values()) for g in gens]
     lower = [PAD_T + inner] * len(gens)
     parts = []
-    for name, colour in LINE_BANDS:
+    for name, color in LINE_BANDS:
         upper = []
         for i, g in enumerate(gens):
             tot = sum(lines[g].values())
@@ -481,7 +481,7 @@ def alluvial(lines):
             upper.append(lower[i] - h)
         fwd = smooth(list(zip(xs, upper)))
         back = smooth(list(zip(reversed(xs), reversed(lower)))).replace("M", "L", 1)
-        parts.append(f'<path d="{fwd} {back} Z" fill="{colour}" opacity="0.92"/>')
+        parts.append(f'<path d="{fwd} {back} Z" fill="{color}" opacity="0.92"/>')
         lower = upper[:]
 
     counts = "".join(
@@ -496,7 +496,7 @@ def alluvial(lines):
     return f"""  <figure class="chart-fig">
     <div class="drift-legend">{legend}</div>
     <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="none"
-         aria-label="Alluvial diagram of ancestral lines converging. At the fourteenth generation there are 898 separate lines, most of them still belonging to a single crossing. Moving forward in time each generation roughly halves as marriages merge lines, the coloured crossing bands dissolve into one American stream, and by the third generation a single line remains.">
+         aria-label="Alluvial diagram of ancestral lines converging. At the fourteenth generation there are 898 separate lines, most of them still belonging to a single crossing. Moving forward in time each generation roughly halves as marriages merge lines, the colored crossing bands dissolve into one American stream, and by the third generation a single line remains.">
       {''.join(parts)}
       {counts}
       {axis}
@@ -506,7 +506,7 @@ def alluvial(lines):
     <figcaption>Every ancestral line the record can reach, as a share of that generation.
     The figures along the top are how many separate lines there are:
     <b>{max(totals)} at the fourteenth generation, one at the end</b>, because every
-    marriage turns two lines into one. The colours are lines that still belong to a single
+    marriage turns two lines into one. The colors are lines that still belong to a single
     crossing, meaning people at or above an immigrant. Watch them give way to a single
     <em>American</em> stream, which takes half the tree by about the tenth generation and
     all of it by the third. Crossing V arrives too late to be anything else: it

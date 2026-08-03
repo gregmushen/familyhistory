@@ -21,7 +21,7 @@ body, ghost roman numeral, index group — extends to five without modification.
 
 ### 1b. A second spine: the inland migration
 
-The spec organises the page around arrivals only. The record does not support that
+The spec organizes the page around arrivals only. The record does not support that
 reading — crossing the Atlantic was one event, and settling the continent took
 another 230 years. The page now carries both:
 
@@ -68,11 +68,11 @@ stat numeral. The equivalent figure here is the first landing, `1620`. The
 ### 5. The ~200-word epoch budget was dropped
 
 Spec §10 sets "roughly 200 words per epoch; one paragraph per figure." That budget
-was written for placeholder copy. Applied to the real record it summarised away
+was written for placeholder copy. Applied to the real record it summarized away
 the material the page exists for — the Mayflower roster, the Great Swamp Fight,
 Mary Esty's petition, the violin. The page runs to about 6,200 words.
 
-The spec's structural rules are all still honoured; only the word count is not.
+The spec's structural rules are all still honored; only the word count is not.
 
 # Additions
 
@@ -130,7 +130,7 @@ anchors with JavaScript off.
 
 Two things it guards that are easy to get wrong by hand: no living person is
 ever named (chains stop at the last death date and count the rest), and people
-who married in or are siblings of an ancestor are labelled collateral rather
+who married in or are siblings of an ancestor are labeled collateral rather
 than given a fabricated descent.
 
 `ALIASES` exists because the tree stores maiden names while the record uses the

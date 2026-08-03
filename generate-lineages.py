@@ -12,7 +12,7 @@ Two rules the generator enforces, because both are easy to get wrong by hand:
   * No living person is named. Chains stop at the last person with a death date
     and record only how many generations follow.
   * Collateral relatives do not get a fake descent. Somebody who married in, or
-    who is a sibling of an ancestor, is labelled as such and pointed at the
+    who is a sibling of an ancestor, is labeled as such and pointed at the
     person who actually carries the line.
 
     python3 generate-lineages.py [--check]
