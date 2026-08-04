@@ -94,6 +94,17 @@ ALIASES = {
     "Stephen Fay": "LT4N-ZCM",              # published as an ancestor, retracted
     "Anna Barbara Riemensnyder": "LTBM-DZT",
     "Catharina Riemensnyder": "LNV6-RGQ",
+    # Ambiguities the page's own sentences resolve: a date it prints, a suffix
+    # it uses, or a spouse it names.
+    "Benjamin Carpenter": "LHL1-YJS",       # 1725-1804, the Vermont lieutenant governor
+    "Benjamin Carpenter Sr.": "KNDM-XHY",   # 1658-1727, of Rehoboth -- a different man
+    "Isaac Eastey Jr": "LBHM-ZJL",          # Mary Esty's son, who married Abigail Kimball
+    "Isaac Eastey Jr.": "LBHM-ZJL",
+    "Stephen Barker": "LCVV-5HL",           # 1659-1741 of Andover, brother of William Sr.
+    "John Webster Sr": "LR6W-GT2",          # the nearer of the two lines' shared ancestors
+    "Samuel Gore": "MVHY-TS3",               # 1652-1692, the first of three
+    "Samuel Gore Jr.": "LZ6V-L16",
+    "Samuel Gore III": "LZPK-LRJ",
 }
 
 
@@ -288,8 +299,14 @@ def build_entries(people, couples, prev, member_of, page_text, force=()):
                               "note": None}
 
     # A truncated record ("Anna Barbara") matches inside a fuller one
-    # ("Anna Barbara Riemensnyder") and would steal its link. Drop the prefixes.
+    # ("Anna Barbara Riemensnyder") and would steal its link. Drop the prefixes --
+    # but never one a human named in ALIASES. "Samuel Gore" is a prefix of "Samuel
+    # Gore Jr.", and he is also a real and different man; link_names already
+    # refuses a match that would run on into a longer entry, so the explicit
+    # alias is safe to keep and this rule was quietly discarding him.
     for core in list(entries):
+        if core in ALIASES:
+            continue
         if any(other != core and other.startswith(core + " ") for other in entries):
             del entries[core]
 
@@ -474,7 +491,13 @@ def _linkable(page, start):
 
 
 def link_names(page, entries):
-    """Wrap the first mention of each person in a link to their entry.
+    """Wrap the first mention of each person *in each section* in a link.
+
+    Once per page is too thrifty. Robert Linton is named twelve times and Andrew
+    Warner ten, and a reader who lands in the middle of the record meets a bare
+    name with no way into the appendix. Once per section gives everyone a link
+    wherever they start reading, without turning a paragraph that repeats a name
+    into a row of blue.
 
     Longest names first, so "Anna Barbara Riemensnyder" claims its text before a
     shorter name can match part of it.
@@ -489,6 +512,20 @@ def link_names(page, entries):
     rather than "is the next word capitalised" keeps married surnames, as in
     "Mary Elizabeth Gilmore Gore", linked to the right person.
     """
+    head, sep, tail = page.partition(BEGIN)
+    # The appendix itself is never linked; only the record above it is. Splitting
+    # on the section boundary is safe because sections do not nest here.
+    parts = re.split(r"(?=<section\b)", head)
+    linked, out = set(), []
+    for part in parts:
+        part, used = _link_section(part, entries)
+        linked |= used
+        out.append(part)
+    return "".join(out) + sep + tail, len(linked)
+
+
+def _link_section(page, entries):
+    """Link the first mention of each person within one section."""
     names = sorted(entries, key=len, reverse=True)
     done = set()
     for core in names:
@@ -510,7 +547,7 @@ def link_names(page, entries):
                                  + r"\s+".join(map(re.escape, variant.split()))
                                  + r"(?![\w-])")
             for m in pattern.finditer(page):
-                if BEGIN in page[:m.start()] or not _linkable(page, m.start()):
+                if not _linkable(page, m.start()):
                     continue
                 if any(page[m.start():].replace("\n", " ").startswith(x) for x in longer):
                     continue
@@ -519,7 +556,7 @@ def link_names(page, entries):
                         + page[m.end():])
                 done.add(pid)
                 break
-    return page, len(done)
+    return page, done
 
 
 def main():
