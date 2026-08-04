@@ -937,3 +937,70 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
 .chart-fig .pa-ax, .chart-fig .pa-ax2 { font-size: 11px; }
 .chart-fig .pi-lab { font-size: 13px; }
 .chart-fig .pi-sub { font-size: 11.5px; }
+
+/* ═══════════════════════════ print / reader ═══════════════════════════
+   The record is 43,000 words and people want it on paper. Two things make
+   that non-trivial: the reveal animation leaves unscrolled sections at
+   opacity 0, so without the first rule below most of the page prints blank;
+   and the fixed rail would otherwise reserve 274px of margin on every sheet. */
+@media print {
+  :root { --rail-w: 0px; --measure: none; --gutter: 0; }
+  @page { margin: 18mm 16mm; }
+
+  /* Anything animated in must be visible on paper, revealed or not. */
+  .reveal-enabled [data-main] > *,
+  .reveal-enabled [data-main] > section,
+  .reveal-enabled [data-main] > header,
+  .reveal-enabled [data-main] > [data-colophon] {
+    opacity: 1 !important; transform: none !important; transition: none !important;
+  }
+
+  [data-rail], .skip-link, .progress-track, .progress-label,
+  dialog.ln-dialog, .ln-more, [data-ghost], .print-link { display: none !important; }
+  [data-main] { margin-left: 0 !important; }
+  [data-main] > section, [data-main] > header {
+    max-width: none; padding-inline: 0; padding-block: 0 14pt;
+  }
+
+  html, body { background: #fff !important; color: #111 !important; font-size: 10.5pt; }
+  body { line-height: 1.45; }
+
+  /* The dark divider bands would each cost a full sheet of toner. */
+  [data-colophon] { background: #fff !important; color: #111 !important;
+    border-top: 1pt solid #999; border-bottom: 1pt solid #999; padding-block: 12pt; }
+  .colophon-kick, .colophon-dek, .kicker, .meta { color: #444 !important; }
+  .colophon-title { font-size: 20pt; }
+
+  h2, .spread-name { font-size: 16pt; }
+  h3 { font-size: 12pt; }
+  .display { font-size: 26pt; }
+  .lead, .dek { font-size: 11.5pt; }
+
+  /* Keep a heading with the text it introduces, and don't split a person,
+     a figure or a table across sheets. */
+  h2, h3, .kicker, .colophon-title { break-after: avoid-page; page-break-after: avoid; }
+  figure, .person, .stat, .note, .table, blockquote, .ln-entry, .lineage,
+  .trio figure { break-inside: avoid; page-break-inside: avoid; }
+  section[data-anchor] { break-before: auto; }
+  img, svg { max-width: 100% !important; height: auto !important; }
+
+  /* Internal links become plain text -- there are 200 of them and a printed
+     "#lin-LZG6-CH7" helps nobody. External sources keep their address, because
+     on paper the URL is the citation. */
+  a.lin, a[href^="#"] { text-decoration: none !important; color: inherit !important; }
+  a[href^="http"] { text-decoration: none; color: inherit; }
+  a[href^="http"]::after {
+    content: " <" attr(href) ">"; font-size: 8.5pt; color: #555; word-break: break-all;
+  }
+
+  /* The appendix is the most useful thing to have on paper; two columns of it
+     on a portrait sheet is a wall, so let it run single. */
+  #lineages .ln-grid { columns: 1 !important; }
+}
+
+.print-link {
+  display: inline-block; margin-top: var(--space-2);
+  font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-58); text-underline-offset: 3px;
+}
+.print-link:hover { color: var(--color-accent); }

@@ -166,12 +166,28 @@
     });
   }
 
+  /* Printing a 43,000-word page is a deliberate act, so it gets a control
+     rather than leaving people to find the browser menu. The reveal animation
+     leaves unscrolled sections at opacity 0; the print stylesheet overrides
+     that, but the class is dropped here as well so the override is not the
+     only thing standing between the reader and a stack of blank paper. */
+  function initPrint() {
+    var link = document.querySelector('[data-print]');
+    if (!link) { return; }
+    link.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      document.documentElement.classList.remove('reveal-enabled');
+      window.print();
+    });
+  }
+
   function init() {
     applyDividers();
     initIndex();
     initProgress();
     initReveal();
     initLineage();
+    initPrint();
   }
 
   if (document.readyState === 'loading') {

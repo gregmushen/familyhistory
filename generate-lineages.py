@@ -102,6 +102,7 @@ ALIASES = {
     "Isaac Eastey Jr.": "LBHM-ZJL",
     "Stephen Barker": "LCVV-5HL",           # 1659-1741 of Andover, brother of William Sr.
     "John Webster Sr": "LR6W-GT2",          # the nearer of the two lines' shared ancestors
+    "Francis Plumer": "L522-LFV",            # tree: "Francis Matthew Plumer"
     "Samuel Gore": "MVHY-TS3",               # 1652-1692, the first of three
     "Samuel Gore Jr.": "LZ6V-L16",
     "Samuel Gore III": "LZPK-LRJ",
