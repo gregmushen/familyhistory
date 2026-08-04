@@ -8,8 +8,8 @@
 <meta name="color-scheme" content="light">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="assets/classical.css?v=84">
-<link rel="stylesheet" href="assets/site.css?v=84">
+<link rel="stylesheet" href="assets/classical.css?v=85">
+<link rel="stylesheet" href="assets/site.css?v=85">
 <script>
   /* Gate the scroll-reveal's hidden state on capability, before first paint. */
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -2613,9 +2613,54 @@
     </div>
 
     <p>Cleaning moves the median from <b>60 to 66</b> and the mean from 60.1 to 64.7. The
-    rounded data was not noisy around a true value — it was <b>six years low</b>, because
-    guessing at an age and guessing at a date both tend to shorten a life that ended a long
-    time ago.</p>
+    rounded data was not noisy around a true value — it was <b>low</b>, because guessing at
+    an age and guessing at a date both tend to shorten a life that ended a long time ago.</p>
+
+    <h4 class="sub-head">But now the clean number is biased the other way</h4>
+
+    <p>Which is the trap in this whole exercise, and it is worth being explicit rather than
+    banking the improvement and moving on. <b>The 66 is too high.</b> A full birth and death
+    date is not distributed at random across a population. It goes with property, a settled
+    parish, a family that kept a Bible, a town with a clerk — and quite possibly with living
+    long enough for somebody to write all of it down.</p>
+
+    <p>That is measurable here. Comparing full-date against year-only records
+    <em>within the same birth century</em>, so era cannot explain it:</p>
+
+    <div class="table-wrap">
+      <table class="table">
+        <caption>Mean age at death, same century, by how well the dates are recorded</caption>
+        <thead><tr><th scope="col">Born</th><th scope="col">Full dates</th>
+        <th scope="col">Year only</th><th scope="col">Difference</th></tr></thead>
+        <tbody>
+          <tr><td>1400s</td><td class="num">60.4</td><td class="num">58.3</td><td class="num">+2.1</td></tr>
+          <tr><td>1500s</td><td class="num">61.6</td><td class="num">58.7</td><td class="num">+2.9</td></tr>
+          <tr><td>1600s</td><td class="num">64.6</td><td class="num">63.3</td><td class="num">+1.3</td></tr>
+          <tr><td>1700s</td><td class="num">62.4</td><td class="num">58.8</td><td class="num">+3.6</td></tr>
+          <tr><td>1800s</td><td class="num">77.4</td><td class="num">72.2</td><td class="num">+5.2</td></tr>
+          <tr><td><b>all</b></td><td class="num"><b>59.5</b></td><td class="num"><b>57.2</b></td><td class="num"><b>+2.3</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><b>Positive in every century.</b> And the gradient continues inside the clean cohort
+    itself: people carrying nought to two sources average 55.9 years, three to nine average
+    54.5, ten to twenty-four average 60.3, and <b>twenty-five or more average 66.8</b>.
+    Eleven years of difference bought by nothing but documentation.</p>
+
+    <p>Two mechanisms, and they cannot be separated with this data. Wealthier, settled,
+    better-fed people genuinely did live longer — that is real, and it is most of what the
+    gradient is. But a long life also <em>generates</em> records: more deeds, more offices,
+    more parish appearances, more chances for somebody to note the date. Whether the
+    documentation follows the longevity or the longevity follows the documentation, the
+    effect on this table is the same.</p>
+
+    <p class="grade" data-grade="supported">So the two numbers bracket rather than settle it.
+    <b>The uncleaned 60 is too low, pulled down by rounding. The cleaned 66 is too high,
+    pulled up by selection.</b> The real median age at death for adults in these families is
+    somewhere between, and this record cannot say where. What it can say is that both numbers
+    are wrong in a direction that is now known, which is a better position than either was on
+    its own.</p>
 
     <h4 class="sub-head">And the maximum was mine, not the data&rsquo;s</h4>
 
@@ -5221,6 +5266,6 @@
 
 </main>
 
-<script src="assets/site.js?v=84"></script>
+<script src="assets/site.js?v=85"></script>
 </body>
 </html>
