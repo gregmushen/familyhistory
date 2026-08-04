@@ -8,8 +8,8 @@
 <meta name="color-scheme" content="light">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="assets/classical.css?v=91">
-<link rel="stylesheet" href="assets/site.css?v=91">
+<link rel="stylesheet" href="assets/classical.css?v=92">
+<link rel="stylesheet" href="assets/site.css?v=92">
 <script>
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches
       && 'IntersectionObserver' in window) {
@@ -33,7 +33,7 @@
     <div class="index-group">
       <p class="index-label">Rejected</p>
       <ul>
-        <li><a data-navlink href="#people">People who are not ancestors<span class="sub">10 entries</span></a></li>
+        <li><a data-navlink href="#people">People who are not ancestors<span class="sub">11 entries</span></a></li>
         <li><a data-navlink href="#dates">Impossible dates<span class="sub">1 entry</span></a></li>
       </ul>
     </div>
@@ -67,14 +67,14 @@
   <h1 class="display">Ruled out.</h1>
   <p class="dek">Family histories publish what survived. This is the other half — every
   claim this record considered and threw out, every portrait that turned out to be
-  somebody else, and every question still open. 30 entries, each with where it came
+  somebody else, and every question still open. 31 entries, each with where it came
   from and how it fell.</p>
   <p class="hint">Nothing on this page is on the main record</p>
 </header>
 
 <section class="stats" aria-label="Summary">
-  <div class="stat stat--accent"><b>30</b><span>Entries</span></div>
-  <div class="stat"><b>16</b><span>Rejected outright</span></div>
+  <div class="stat stat--accent"><b>31</b><span>Entries</span></div>
+  <div class="stat"><b>17</b><span>Rejected outright</span></div>
   <div class="stat"><b>4</b><span>Wrong faces</span></div>
   <div class="stat"><b>13</b><span>Still open</span></div>
 </section>
@@ -226,6 +226,21 @@
       <dd>She was a daughter of Humphrey Bradstreet of Ipswich, a separate and unconnected Bradstreet family. The governor's household is not in this line.</dd>
       <dt>Sources</dt>
       <dd><em>Ruled out by:</em> <b>Local edge graph of the FamilySearch mirror</b> · Derived from fs_couples / fs_edges · 2026 · Parents of LBF2-6ZH</dd>
+    </dl>
+  </article>
+  <article class="claim">
+    <div class="claim-head"><h3>Two soldiers linked to the wrong men</h3><span class="verdict v-out">Rejected</span></div>
+    <dl>
+      <dt>The claim</dt>
+      <dd>The record's links for Timothy Warner and Paul Plumer pointed at two men of the same names who died before the Revolution, crediting each with service he could not have performed.</dd>
+      <dt>Where it came from</dt>
+      <dd>Found while checking that every serviceman in the roster was linked.</dd>
+      <dt>How it was ruled out</dt>
+      <dd>Both names are carried by more than one person in this tree. The link for Timothy Warner resolved to a collateral relative who lived 1724-1760, fifteen years dead at Lexington, rather than the direct ancestor born 1763 whom the page's own text describes as twelve when the shooting started. The link for Paul Plumer resolved to a collateral who lived 1732-1771 rather than Major Paul Plumer (1746-1831), the direct ancestor whom the page's own text names as the husband of Hannah Woodbridge. The cause was in the generator: where two records reduced to the same name it chose between them on source count, which measures how many descendants went looking and says nothing about which man is meant. It now prefers a direct ancestor over a collateral, and refuses to link at all where two direct ancestors share a name, listing them for a human to resolve.</dd>
+      <dt>Why it matters more than a broken link</dt>
+      <dd>A reader following either link reached an appendix entry for a different person and was told, in effect, that this man served in the Revolution. That is the Stephen Fay error committed twice more, silently, by machine rather than by hand.</dd>
+      <dt>Sources</dt>
+      <dd><em>Ruled out by:</em> <b>Local edge graph of the FamilySearch mirror</b> · Derived from fs_couples / fs_edges · 2026 · Descent check on L4WZ-CTC and GQXQ-DX9</dd>
     </dl>
   </article>
 </section>
@@ -547,6 +562,6 @@
 
 </main>
 
-<script src="assets/site.js?v=91"></script>
+<script src="assets/site.js?v=92"></script>
 </body>
 </html>

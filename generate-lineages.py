@@ -66,6 +66,28 @@ ALIASES = {
     # the bare name is never safe to link. Only the glover is aliased, and only
     # under the phrase that identifies him.
     "Thomas Hale the glover": "LKY6-68H",
+    # The nine servicemen. Four of these names are shared with a collateral
+    # relative of the same name, so every one is pinned by hand rather than
+    # resolved by heuristic.
+    "Lt. John Carter": "LYGM-5X2",          # tree: "Lieutenant John Carter"
+    "Timothy Warner": "P4VN-K3M",           # b. 1763, not the uncle d. 1760
+    "Paul Plumer": "L7BV-RQN",              # tree: "Major Paul Plumer", d. 1831
+    "Sgt. J. P. Ritter": "LCRZ-N4Q",        # tree: "Sgt. Johannes Peter Ritter"
+    "William A. Campbell": "GSKX-JGN",      # tree: "William Alexander Campbell"
+    "John Carter": "LYGM-5X2",              # five direct John Carters; the Woburn soldier
+    # Names the page uses that more than one direct ancestor answers to. Each is
+    # pinned from what the page itself says -- a date it prints, or a spouse it
+    # names -- rather than from source counts.
+    "Stephen Greenleaf": "LRN6-D5N",        # 1628-1690, the Newbury militia captain
+    "John Cheney": "LTKS-4M5",              # 1602-1666, of Newbury
+    "Richard Dole": "MGGT-CDQ",             # 1622-1705, of Rangeworthy
+    "William Carpenter": "M2HJ-YXC",        # 1605-1658, of Rehoboth
+    "Elizabeth Coffin": "LY8Z-K4H",         # 1634-1678, Tristram's daughter
+    "John Child": "LKY2-ZHV",               # the one who married Hannah French
+    "Margaret Clark": "LTFM-LDP",           # b. Londonderry 1692
+    "Elizabeth Smith": "LYNG-SRH",          # 1846-1938, m. Robert Linton
+    "John Porter": "L89R-C2W",              # 1774-1848, the one in the chain
+    "Samuel Albert Mushen": "G4GP-J5B",     # 1911-1975, who married Beulah Gore
 }
 
 
@@ -186,7 +208,16 @@ def build_entries(people, couples, prev, member_of, page_text, force=()):
     for pid, p in people.items():
         by_name[p["name"]].append(pid)
 
-    entries = {}
+    # Two different records can reduce to the same core name -- "Timothy Warner"
+    # and "Major Paul Plumer" both lose their titles and collide with a plain
+    # namesake. Collect every candidate for a core before choosing between them,
+    # because the old code picked whichever spelling it happened to reach last
+    # and then broke ties on source count. Source count measures how many
+    # descendants went looking; it says nothing about which man the page means.
+    # It linked Timothy Warner to an uncle who died in 1760 and Paul Plumer to a
+    # man who died in 1771, both of them credited on the page with Revolutionary
+    # service they could not have performed.
+    by_core = collections.defaultdict(set)
     for name, pids in by_name.items():
         if len(name) < 8 or name.startswith("*") or JUNK.search(name):
             continue
@@ -195,10 +226,29 @@ def build_entries(people, couples, prev, member_of, page_text, force=()):
             continue
         if core[0].islower() or len(core.split()) < 2:
             continue          # "of Whalley", bare given names
-        pid = max(pids, key=lambda x: (people[x]["source_count"] or 0))
-        if living(people[pid]):
+        by_core[core].update(pids)
+
+    entries, ambiguous = {}, []
+    for core, pids in by_core.items():
+        if core in ALIASES:
+            continue          # a human has already said which one this is
+        ranked = []
+        for pid in pids:
+            if living(people[pid]):
+                continue
+            ranked.append((descent(pid, people, couples, prev, member_of), pid))
+        if not ranked:
             continue
-        chain = descent(pid, people, couples, prev, member_of)
+        direct = [r for r in ranked if r[0]]
+        # A direct ancestor always beats a collateral of the same name. Two
+        # direct ancestors sharing a name cannot be told apart from the page
+        # text, so refuse rather than guess -- a wrong link here is the Fay
+        # error again, published silently.
+        pool = direct or ranked
+        if len(pool) > 1 and direct:
+            ambiguous.append((core, sorted(p for _, p in pool)))
+            continue
+        chain, pid = max(pool, key=lambda r: (people[r[1]]["source_count"] or 0))
         entries[core] = {"pid": pid, "person": people[pid], "chain": chain,
                          "note": None if chain else
                          collateral_note(pid, people, couples, prev, member_of)}
@@ -212,6 +262,12 @@ def build_entries(people, couples, prev, member_of, page_text, force=()):
             entries[p["name"]] = {
                 "pid": pid, "person": p, "note": None,
                 "chain": descent(pid, people, couples, prev, member_of)}
+
+    if ambiguous:
+        print("  ambiguous names, not linked (add an alias to resolve):")
+        for core, pids in sorted(ambiguous):
+            print(f"    {core}: " + ", ".join(
+                f"{q} {people[q]['lifespan']}" for q in pids))
 
     for alias, pid in ALIASES.items():
         if alias in page_text and pid in people and alias not in entries:
