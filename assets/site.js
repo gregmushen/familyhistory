@@ -109,6 +109,22 @@
 
     var body = dlg.querySelector('[data-ln-body]');
     var opener = null;
+    var jumping = false;   /* true only when the reader asked to go to the appendix */
+
+    /* focus() scrolls its target into view, and both of the focus calls below
+       used to move the page under the reader: opening a dialog scrolled the
+       document away, and closing it scrolled back. preventScroll stops that at
+       the source; the explicit restore is the belt to its braces, because the
+       page is 40,000 words and any drift is very visible. */
+    function keepPlace(fn) {
+      var y = window.pageYOffset;
+      fn();
+      if (!jumping && window.pageYOffset !== y) { window.scrollTo(0, y); }
+    }
+    function focusQuietly(el) {
+      if (!el) { return; }
+      try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    }
 
     function close() {
       dlg.close();
@@ -118,7 +134,10 @@
       if (ev.target === dlg) { close(); }        /* backdrop */
     });
     dlg.addEventListener('close', function () {
-      if (opener) { opener.focus(); opener = null; }
+      keepPlace(function () {
+        if (opener) { focusQuietly(opener); opener = null; }
+      });
+      jumping = false;
     });
 
     Array.prototype.forEach.call(links, function (a) {
@@ -128,15 +147,21 @@
         ev.preventDefault();
         opener = a;
         body.innerHTML = '';
-        body.appendChild(entry.cloneNode(true));
+        /* The clone carries the appendix entry's id, which would put a second
+           element with that id in the document and make #lin-… ambiguous. */
+        var copy = entry.cloneNode(true);
+        copy.removeAttribute('id');
+        body.appendChild(copy);
         var more = document.createElement('a');
         more.className = 'ln-more';
         more.href = '#' + entry.id;
         more.textContent = 'See it in the appendix';
-        more.addEventListener('click', close);
+        more.addEventListener('click', function () { jumping = true; close(); });
         body.appendChild(more);
-        dlg.showModal();
-        dlg.querySelector('.ln-close').focus();
+        keepPlace(function () {
+          dlg.showModal();
+          focusQuietly(dlg.querySelector('.ln-close'));
+        });
       });
     });
   }
