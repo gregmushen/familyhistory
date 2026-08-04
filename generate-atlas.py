@@ -1078,7 +1078,7 @@ ULSTER_SURNAMES_US = {"Leard", "Gartley", "Campbell", "Gilmore", "Borland", "Bor
 def classify_gap(person):
     """A probable origin for a line that stops in America, or None.
 
-    Inference, not evidence, and labelled that way wherever it is shown. A
+    Inference, not evidence, and labeled that way wherever it is shown. A
     colonial New England birth before 1800 is Great Migration stock in almost
     every case; a Pennsylvania line carrying an Ulster surname is Ulster Scots;
     a Mohawk Valley line is Palatine. Everything else stays unclear rather than
@@ -1159,7 +1159,7 @@ def gap_breakdown(rows):
 def coverage_chart(rows, sides):
     """Waterfall: the pedigree reduced to what can be placed, by origin not by state.
 
-    The steps that come off are labelled by what the missing ancestry probably
+    The steps that come off are labeled by what the missing ancestry probably
     was, because 'stops in Pennsylvania' is not an origin -- it is the place a
     paper trail ended, and putting a state on the same axis as a country was
     the conflation this figure exists to undo.
@@ -1232,14 +1232,14 @@ def coverage_chart(rows, sides):
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {H:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Waterfall from the whole pedigree down to the {traced*100:.0f} per cent
-         traced to a known origin. The steps removed are labelled by what the missing
+         traced to a known origin. The steps removed are labeled by what the missing
          ancestry probably was rather than by the American state the record stops in: about
          {prob_total*100:.0f} per cent can be given a probable origin from place and surname,
          and the rest cannot.">
       {"".join(out)}
     </svg>
     <figcaption>How much of the pedigree can be placed, and what the rest probably was. Each
-    step is labelled by likely origin rather than by the state the trail ends in, because a
+    step is labeled by likely origin rather than by the state the trail ends in, because a
     state is not an origin. <b>{traced*100:.0f}% reaches a documented crossing</b>; another
     <b>{prob_total*100:.0f}% has a probable one</b> from place and surname together; the
     remainder has neither. Only the final bar is described by the next figure.</figcaption>
