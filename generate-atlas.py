@@ -1085,7 +1085,7 @@ def ancestry_chart(rows, sides):
     traced = sum(raw.values())
     parts = [(k, v / traced, count[k]) for k, v in raw.most_common()]
 
-    pad_l, pad_r, top, h = 66, 74, 66, 330
+    pad_l, pad_r, top, h = 66, 74, 74, 330
     span = W - pad_l - pad_r
     n = len(parts)
     slot = span / n
@@ -1103,7 +1103,7 @@ def ancestry_chart(rows, sides):
         out.append(f'<text x="{pad_l-10}" y="{y+4:.1f}" text-anchor="end" class="pa-ax">{t}%</text>')
     for t in range(0, 101, 25):
         out.append(f'<text x="{W-pad_r+10}" y="{cy(t/100)+4:.1f}" class="pa-ax2">{t}%</text>')
-    out.append(f'<text x="{pad_l-10}" y="{top-22}" text-anchor="end" class="pa-hd">share of DNA</text>')
+    out.append(f'<text x="{pad_l-10}" y="{top-22}" class="pa-hd">share of DNA</text>')
     out.append(f'<text x="{W-pad_r+10}" y="{top-22}" class="pa-hd2">cumulative</text>')
 
     run, pts = 0.0, []
@@ -1142,8 +1142,19 @@ def ancestry_chart(rows, sides):
     out.append(f'<line x1="{pad_l}" y1="{y0}" x2="{W-pad_r}" y2="{y0}" '
                f'stroke="var(--color-text)" stroke-width="1"/>')
 
+    ky = y0 + 62
+    out.append(f'<rect x="{pad_l}" y="{ky}" width="26" height="11" rx="2" '
+               f'fill="var(--color-accent-700)" opacity="0.8"/>')
+    out.append(f'<text x="{pad_l+33}" y="{ky+10}" class="ls-sub">share of the DNA, '
+               f'left axis</text>')
+    out.append(f'<line x1="{pad_l+232}" y1="{ky+5}" x2="{pad_l+264}" y2="{ky+5}" '
+               f'stroke="var(--color-neutral-800)" stroke-width="1.8" opacity="0.75"/>')
+    out.append(f'<circle cx="{pad_l+248}" cy="{ky+5}" r="3.2" fill="var(--color-neutral-800)"/>')
+    out.append(f'<text x="{pad_l+272}" y="{ky+10}" class="ls-sub">running total, '
+               f'right axis</text>')
+
     two = (parts[0][1] + parts[1][1]) * 100
-    height = y0 + 74
+    height = y0 + 100
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Pareto chart. Bars give each origin's share of the inherited DNA on the
@@ -1178,7 +1189,7 @@ def coverage_chart(rows, sides):
     steps = [(f"probably {k}", v, "prob") for k, v in probable.most_common()]
     steps += [(k, v, "unk") for k, v in unclear.most_common()]
 
-    pad_l, pad_r, top, h = 30, 30, 104, 286
+    pad_l, pad_r, top, h = 62, 30, 104, 286
     n = len(steps) + 2
     span = W - pad_l - pad_r
     gapx = span / n
@@ -1209,7 +1220,7 @@ def coverage_chart(rows, sides):
         out.append(f'<line x1="{x - gapx + bw:.1f}" y1="{htop:.1f}" x2="{x:.1f}" '
                    f'y2="{htop:.1f}" stroke="var(--color-neutral-400)" stroke-width="0.8" '
                    f'stroke-dasharray="2 2"/>')
-        out.append(cap(x, htop - 8, f"&#8722;{v*100:.1f}%", "wf-num"))
+        out.append(cap(x, htop - 9, f"&#8722;{v*100:.1f}%", "wf-num"))
         words, lines, cur = name.split(), [], ""
         for wd in words:
             if len(cur) + len(wd) > 15:
@@ -1225,17 +1236,28 @@ def coverage_chart(rows, sides):
     out.append(cap(x, y0 - running * h - 10, f"{running*100:.0f}%", "wf-num"))
     out.append(cap(x, y0 + 18, "traced to a", "wf-lab"))
     out.append(cap(x, y0 + 31, "known origin", "wf-lab"))
-    out.append(f'<line x1="{pad_l}" y1="{y0:.1f}" x2="{W-pad_r}" y2="{y0:.1f}" '
-               f'stroke="var(--color-divider)"/>')
-    out.append(f'<rect x="{pad_l}" y="{top-46}" width="13" height="13" rx="2" '
+    grid = []
+    for t in range(0, 101, 20):
+        gy = y0 - h * t / 100
+        grid.append(f'<line x1="{pad_l-6}" y1="{gy:.1f}" x2="{W-pad_r}" y2="{gy:.1f}" '
+                    f'stroke="var(--color-divider)" stroke-width="{1 if t in (0,100) else 0.6}" '
+                    f'opacity="0.7"/>')
+        grid.append(f'<text x="{pad_l-12}" y="{gy+4:.1f}" text-anchor="end" '
+                    f'class="ls-sub">{t}%</text>')
+    out = grid + out
+
+    ky = y0 + 60
+    out.append(f'<rect x="{pad_l}" y="{ky}" width="26" height="11" rx="2" '
                f'fill="var(--color-accent-500)" opacity="0.55"/>')
-    out.append(f'<text x="{pad_l+20}" y="{top-35}" class="wf-key">a probable origin, from '
+    out.append(f'<text x="{pad_l+33}" y="{ky+10}" class="ls-sub">a probable origin, from '
                f'place and surname &#8212; inference, not evidence</text>')
-    out.append(f'<rect x="{pad_l+352}" y="{top-46}" width="13" height="13" rx="2" '
+    out.append(f'<rect x="{pad_l+392}" y="{ky}" width="26" height="11" rx="2" '
                f'fill="var(--color-neutral-500)" opacity="0.35"/>')
-    out.append(f'<text x="{pad_l+372}" y="{top-35}" class="wf-key">no usable inference</text>')
+    out.append(f'<text x="{pad_l+425}" y="{ky+10}" class="ls-sub">no usable inference</text>')
+    out.append(f'<text x="{W/2:.0f}" y="{ky+38}" text-anchor="middle" class="ls-sub">'
+               f'share of the whole pedigree</text>')
     prob_total = sum(probable.values())
-    H = y0 + 72
+    H = y0 + 112
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {H:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Waterfall from the whole pedigree down to the {traced*100:.0f} per cent
@@ -1297,6 +1319,8 @@ def composition_chart(rows, sides):
                f'{traced*100:.0f}%</text>')
     out.append(f'<text x="{cx}" y="{cy + 15}" text-anchor="middle" class="pi-midsub">'
                f'of the pedigree</text>')
+    out.append(f'<text x="{cx}" y="470" text-anchor="middle" class="ls-sub">'
+               f'each origin as a share of the placeable ancestry</text>')
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} 500" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Donut chart of the placeable ancestry. England and Wales is 47 per cent

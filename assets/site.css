@@ -911,3 +911,14 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
   font-family: var(--font-body); font-size: 9.5px; fill: var(--ink-50);
   font-variant-numeric: tabular-nums lining-nums;
 }
+
+/* — the newer figures share the lifespan chart's type scale — */
+.chart-fig .wf-num { font-size: 12px; fill: var(--color-accent-800); }
+.chart-fig .wf-lab { font-size: 10.5px; fill: var(--ink-58); }
+.chart-fig .pa-val { font-size: 12px; fill: var(--color-accent-800); }
+.chart-fig .pa-name { font-size: 11.5px; fill: var(--color-text); }
+.chart-fig .pa-n { font-size: 10px; fill: var(--ink-50); }
+.chart-fig .pa-cum { font-size: 11px; fill: var(--color-neutral-800); }
+.chart-fig .pa-ax, .chart-fig .pa-ax2 { font-size: 11px; }
+.chart-fig .pi-lab { font-size: 13px; }
+.chart-fig .pi-sub { font-size: 11.5px; }
