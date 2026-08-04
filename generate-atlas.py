@@ -1506,7 +1506,11 @@ def century_chart(rows, sides):
             continue
         bins[(born // 100) * 100].append(age)
 
-    keys = [c for c in sorted(bins) if len(bins[c]) >= 15]
+    # Show every century that has anybody in it. The recent bins are tiny for a
+    # structural reason rather than a filter one -- a pedigree halves as it comes
+    # forward -- so hiding them would conceal the shape of the record.
+    keys = [c for c in sorted(bins) if len(bins[c]) >= 3]
+    SMALL = 15
     lo, hi = 10, 110
     pad_l, pad_r, top, row_h = 190, 120, 96, 74
     span = W - pad_l - pad_r
@@ -1526,31 +1530,49 @@ def century_chart(rows, sides):
         colour = "var(--color-accent-700)"
         mean, sd = statistics.mean(v), statistics.pstdev(v)
         med, lo_v, hi_v = statistics.median(v), min(v), max(v)
-        out.append(f'<rect x="{x(mean-2*sd):.1f}" y="{y:.1f}" '
-                   f'width="{x(mean+2*sd)-x(mean-2*sd):.1f}" height="20" rx="3" '
-                   f'fill="{colour}" opacity="0.13"/>')
-        out.append(f'<rect x="{x(mean-sd):.1f}" y="{y:.1f}" '
-                   f'width="{x(mean+sd)-x(mean-sd):.1f}" height="20" rx="3" '
-                   f'fill="{colour}" opacity="0.34"/>')
-        out.append(f'<line x1="{x(med):.1f}" y1="{y-4:.0f}" x2="{x(med):.1f}" '
-                   f'y2="{y+24:.0f}" stroke="{colour}" stroke-width="2.4"/>')
-        out.append(f'<circle cx="{x(mean):.1f}" cy="{y+10:.0f}" r="3.4" fill="none" '
-                   f'stroke="{colour}" stroke-width="1.6"/>')
-        for val in (lo_v, hi_v):
-            out.append(f'<line x1="{x(val):.1f}" y1="{y+2:.0f}" x2="{x(val):.1f}" '
-                       f'y2="{y+18:.0f}" stroke="{colour}" stroke-width="1.5" opacity="0.9"/>')
-            out.append(f'<text x="{x(val):.1f}" y="{y-6:.0f}" text-anchor="middle" '
-                       f'class="ls-x">{val}</text>')
+        if len(v) < SMALL:
+            # Too few for a distribution. Draw the actual people instead of
+            # implying a shape that four observations cannot support.
+            for a in sorted(v):
+                out.append(f'<circle cx="{x(a):.1f}" cy="{y+10:.0f}" r="4" '
+                           f'fill="{colour}" opacity="0.55"/>')
+                out.append(f'<text x="{x(a):.1f}" y="{y-6:.0f}" text-anchor="middle" '
+                           f'class="ls-x">{a}</text>')
+        else:
+            out.append(f'<rect x="{x(mean-2*sd):.1f}" y="{y:.1f}" '
+                       f'width="{x(mean+2*sd)-x(mean-2*sd):.1f}" height="20" rx="3" '
+                       f'fill="{colour}" opacity="0.13"/>')
+            out.append(f'<rect x="{x(mean-sd):.1f}" y="{y:.1f}" '
+                       f'width="{x(mean+sd)-x(mean-sd):.1f}" height="20" rx="3" '
+                       f'fill="{colour}" opacity="0.34"/>')
+            out.append(f'<line x1="{x(med):.1f}" y1="{y-4:.0f}" x2="{x(med):.1f}" '
+                       f'y2="{y+24:.0f}" stroke="{colour}" stroke-width="2.4"/>')
+            out.append(f'<circle cx="{x(mean):.1f}" cy="{y+10:.0f}" r="3.4" fill="none" '
+                       f'stroke="{colour}" stroke-width="1.6"/>')
+            for val in (lo_v, hi_v):
+                out.append(f'<line x1="{x(val):.1f}" y1="{y+2:.0f}" x2="{x(val):.1f}" '
+                           f'y2="{y+18:.0f}" stroke="{colour}" stroke-width="1.5" '
+                           f'opacity="0.9"/>')
+                out.append(f'<text x="{x(val):.1f}" y="{y-6:.0f}" text-anchor="middle" '
+                           f'class="ls-x">{val}</text>')
         out.append(f'<text x="{pad_l-16}" y="{y+8:.0f}" text-anchor="end" class="ls-lab">'
                    f'born in the {c}s</text>')
         out.append(f'<text x="{pad_l-16}" y="{y+22:.0f}" text-anchor="end" class="ls-sub">'
                    f'{len(v):,} people</text>')
-        out.append(f'<text x="{W-pad_r+14}" y="{y+4:.0f}" class="ls-sub">median '
-                   f'<tspan class="ls-n">{med:.0f}</tspan></text>')
-        out.append(f'<text x="{W-pad_r+14}" y="{y+18:.0f}" class="ls-sub">SD '
-                   f'<tspan class="ls-n">{sd:.1f}</tspan></text>')
+        if len(v) < SMALL:
+            out.append(f'<text x="{W-pad_r+14}" y="{y+12:.0f}" class="ls-sub">'
+                       f'too few to read</text>')
+        else:
+            out.append(f'<text x="{W-pad_r+14}" y="{y+4:.0f}" class="ls-sub">median '
+                       f'<tspan class="ls-n">{med:.0f}</tspan></text>')
+            out.append(f'<text x="{W-pad_r+14}" y="{y+18:.0f}" class="ls-sub">SD '
+                       f'<tspan class="ls-n">{sd:.1f}</tspan></text>')
 
     ky = top + len(keys) * row_h + 6
+    out.append(f'<circle cx="{pad_l+560}" cy="{ky+5}" r="4" fill="var(--color-accent-700)" '
+               f'opacity="0.55"/>')
+    out.append(f'<text x="{pad_l+572}" y="{ky+10}" class="ls-sub">one person, where a bin '
+               f'is too small for a distribution</text>')
     out.append(f'<rect x="{pad_l}" y="{ky}" width="26" height="11" rx="2" '
                f'fill="var(--color-accent-700)" opacity="0.13"/>')
     out.append(f'<text x="{pad_l+33}" y="{ky+10}" class="ls-sub">mean &#177; 2 SD</text>')
@@ -1569,7 +1591,8 @@ def century_chart(rows, sides):
     out.append(f'<text x="{W/2:.0f}" y="{height-16}" text-anchor="middle" class="ls-sub">'
                f'age at death, in years</text>')
 
-    first, last = bins[keys[0]], bins[keys[-1]]
+    big = [c for c in keys if len(bins[c]) >= SMALL]
+    first, last = bins[big[0]], bins[big[-1]]
     rise = statistics.median(last) - statistics.median(first)
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
