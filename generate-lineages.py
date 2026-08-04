@@ -58,6 +58,14 @@ ALIASES = {
     # a section of his own -- with no entry at all.
     "John Lothropp": "LZG6-CH7",
     "Rev. John Lothropp": "LZG6-CH7",
+    # Same problem, milder: the tree carries a disambiguating suffix that no
+    # sentence would ever use.
+    "Richard Kimball": "LZVC-8XC",   # tree: "Richard Kimball Sr."
+    "Anthony Morse": "L13X-SYJ",     # tree: "Anthony Morse Sr. of Newbury"
+    # Four Thomas Hales run down this line in four consecutive generations, so
+    # the bare name is never safe to link. Only the glover is aliased, and only
+    # under the phrase that identifies him.
+    "Thomas Hale the glover": "LKY6-68H",
 }
 
 
