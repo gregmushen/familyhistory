@@ -886,18 +886,24 @@ def origin_group(person):
     if "Ireland" in place:
         return ("Scotland & Ulster" if surname_last in ULSTER_SCOTS_NAMES
                 else "Ireland, other")
-    return next((n for n, keys in ORIGIN_GROUPS if any(k in place for k in keys)), None)
+    return next((n for n, keys in ORIGIN_GROUPS if any(k in place for k in keys)),
+                "origin abroad, unidentified")
 
 
 def ancestry_weights(people):
-    """Expected share of autosomal DNA for every traced ancestor.
+    """Expected share of autosomal DNA, partitioned so it adds to exactly 100%.
 
-    Each parent contributes half of what their child contributes, so an ancestor
-    n generations back is worth 1/2^n -- and a person reached by several
-    different lines of descent gets the sum of all of them, which is what makes
-    this worth computing rather than assuming.
+    Each parent contributes half of what their child contributes, and a person
+    reached by several lines gets the sum of all of them. Two rules make the
+    total come out at one rather than somewhere above it:
 
-    Returns (weight by pid, share crossing the ocean by nation, count by nation).
+      * a line stops being followed once it leaves America, so the ancestors of
+        an immigrant are not counted again on top of the immigrant;
+      * where a couple records only one parent, the missing half is booked as a
+        gap rather than quietly evaporating.
+
+    Returns share and headcount by origin, where the American lines stop, and
+    the single-parent gap.
     """
     db = connect(DB)
     db.row_factory = sqlite3.Row
@@ -908,8 +914,12 @@ def ancestry_weights(people):
             up[r["child_couple_id"]].append((r["parent_couple_id"], r["via"]))
     db.close()
 
-    # Topological order: every descendant settled before its ancestors, so a
-    # weight is final by the time it is halved and passed upward.
+    by_pid = {p["pid"]: p for p in people}
+
+    def abroad(pid):
+        place = by_pid.get(pid, {}).get("birth_place")
+        return bool(place) and not born_in_america(place)
+
     seen, order, stack = set(), [], [(ROOT_COUPLE, False)]
     while stack:
         node, done = stack.pop()
@@ -926,42 +936,40 @@ def ancestry_weights(people):
 
     weight = collections.defaultdict(float)
     weight[couples[ROOT_COUPLE]["parent1_pid"]] = 1.0
+    gap, passes_up = 0.0, set()
     for cid in order:
         c = couples[cid]
         for parent_id, via in up.get(cid, []):
             heir = c["parent1_pid"] if via == "parent1" else c["parent2_pid"]
-            if not heir:
-                continue
+            if not heir or abroad(heir):
+                continue                       # the ocean absorbs the line
+            passes_up.add(heir)
             share = weight[heir] / 2.0
-            pc = couples[parent_id]
+            pc, got = couples[parent_id], 0
             for key in ("parent1_pid", "parent2_pid"):
                 if pc.get(key):
                     weight[pc[key]] += share
+                    got += 1
+            if got == 1:
+                gap += share                   # the other parent was never entered
 
-    # The crossing point is the last foreign-born person in a line: born abroad,
-    # with an American-born child. Counting every foreign-born ancestor would
-    # double-count a line that was still crossing two generations running.
-    by_pid = {p["pid"]: p for p in people}
-    nation_share, nation_count, unknown = collections.Counter(), collections.Counter(), 0.0
-    for cid, edges in up.items():
-        c = couples[cid]
-        for parent_id, via in edges:
-            heir = c["parent1_pid"] if via == "parent1" else c["parent2_pid"]
-            if not heir or not born_in_america(by_pid.get(heir, {}).get("birth_place")):
-                continue
-            pc = couples[parent_id]
-            for key in ("parent1_pid", "parent2_pid"):
-                pid = pc.get(key)
-                place = by_pid.get(pid, {}).get("birth_place") if pid else None
-                if not place or born_in_america(place):
-                    continue
-                nat = origin_group(by_pid.get(pid, {}))
-                if nat:
-                    nation_share[nat] += weight.get(pid, 0.0)
-                    nation_count[nat] += 1
-                else:
-                    unknown += weight.get(pid, 0.0)
-    return weight, nation_share, nation_count, unknown
+    share_by, count_by, stops = collections.Counter(), collections.Counter(), collections.Counter()
+    for pid, v in weight.items():
+        if v <= 1e-12:
+            continue
+        if abroad(pid):
+            g = origin_group(by_pid.get(pid, {}))
+            share_by[g] += v
+            count_by[g] += 1
+        elif pid not in passes_up:
+            p = by_pid.get(pid, {})
+            blob = f"{p.get('birth_place') or ''} {p.get('death_place') or ''}"
+            where = next((x for x in ("Pennsylvania", "New York", "Ohio", "Massachusetts",
+                                      "Connecticut", "Vermont", "Rhode Island", "New Jersey",
+                                      "Virginia", "New Hampshire", "Maine", "Iowa", "Illinois")
+                          if x in blob), "place unrecorded")
+            stops[where] += v
+    return share_by, count_by, stops, gap
 
 
 def ancestry_chart(rows, sides):
@@ -970,8 +978,9 @@ def ancestry_chart(rows, sides):
     A slopegraph because the point is the reordering. Counting immigrants and
     counting inheritance give almost opposite answers, and the lines cross.
     """
-    _w, share, count, unknown = ancestry_weights(rows)
-    traced = sum(share.values()) + unknown
+    share, count, stops, gap = ancestry_weights(rows)
+    traced = sum(share.values())
+    lost = sum(stops.values()) + gap
     tot_n = sum(count.values()) or 1
 
     names = [n for n in set(list(count) + list(share)) if count.get(n) or share.get(n)]
@@ -1023,8 +1032,8 @@ def ancestry_chart(rows, sides):
 
     fy = top + h + 46
     out.append(f'<text x="{W/2:.0f}" y="{fy}" text-anchor="middle" class="an-foot">'
-               f'traced to a crossing: {100*traced:.0f}% &#183; untraced or unknown: '
-               f'{100*(1-traced):.0f}%</text>')
+               f'crossed an ocean: {100*traced:.1f}% &#183; line stops before a coast: '
+               f'{100*lost:.1f}% &#183; total {100*(traced+lost):.0f}%</text>')
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {fy + 26:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Slopegraph comparing each origin's share of immigrant ancestors on the
