@@ -17,7 +17,7 @@ import sys
 
 DB = os.path.expanduser("~/.local/share/familysearch-pp-cli/data.db")
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ruled-out.html")
-ASSET_V = "v=83"
+ASSET_V = "v=84"
 
 # Section order, and the editorial lead that introduces each. The entries
 # themselves are generated.

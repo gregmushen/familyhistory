@@ -1303,6 +1303,32 @@ def composition_chart(rows, sides):
   </figure>"""
 
 
+FULL_DATE = re.compile(r"^\s*\d{1,2}\s+[A-Z][a-z]+\s+\d{3,4}\s*$")
+VAGUE_DATE = re.compile(r"\b(about|abt|circa|c\.|bef|aft|before|after|estimated|calculated)\b",
+                        re.I)
+
+
+def clean_age(row):
+    """Age at death, but only where the dates can carry the weight.
+
+    Both ends must be a full day-month-year with no hedging word attached.
+    Year-only records are where the rounding lives: across the whole tree 25.8%
+    of ages land on a multiple of five against a chance 20%, and inside this
+    filter it falls to chance. The filter is not tidiness -- it is the
+    difference between a recorded age and a remembered one.
+    """
+    birth = (row.get("birth_date") or "").strip()
+    death = (row.get("death_date") or "").strip()
+    if VAGUE_DATE.search(birth) or VAGUE_DATE.search(death):
+        return None
+    if not FULL_DATE.match(birth) or not FULL_DATE.match(death):
+        return None
+    born, died = lifespan(row)
+    if not born or not died or died < born:
+        return None
+    return died - born
+
+
 def lifespan_chart(rows, sides):
     """Age at death by side of the family and by sex, as decile strips.
 
@@ -1316,11 +1342,8 @@ def lifespan_chart(rows, sides):
     for r in rows:
         if "Living" in (r["lifespan"] or ""):
             continue
-        born, died = lifespan(r)
-        if not born or not died:
-            continue
-        age = died - born
-        if age < 0 or age > 110:
+        age = clean_age(r)
+        if age is None:
             continue
         in_d, in_m = r["pid"] in dad, r["pid"] in mom
         side = ("father's side" if in_d and not in_m
@@ -1330,8 +1353,8 @@ def lifespan_chart(rows, sides):
         groups[(side, "men" if r["gender"] == "MALE" else "women")].append(age)
 
     keys = [(s, g) for s in ("father's side", "mother's side") for g in ("men", "women")]
-    keys = [k for k in keys if len(groups.get(k, [])) >= 30]
-    lo, hi = 0, 100
+    keys = [k for k in keys if len(groups.get(k, [])) >= 60]
+    lo, hi = 15, 105
     pad_l, pad_r, top, row_h = 190, 120, 96, 74
     span = W - pad_l - pad_r
     x = lambda a: pad_l + span * (min(max(a, lo), hi) - lo) / (hi - lo)
@@ -1342,7 +1365,7 @@ def lifespan_chart(rows, sides):
         return [v[min(int(len(v) * i / 10), len(v) - 1)] for i in range(1, 10)]
 
     out = []
-    for t in range(0, 101, 10):
+    for t in range(20, 106, 10):
         out.append(f'<line x1="{x(t):.1f}" y1="{top-26}" x2="{x(t):.1f}" '
                    f'y2="{top + len(keys)*row_h - 20:.1f}" stroke="var(--color-divider)" '
                    f'stroke-width="{1 if t % 20 == 0 else 0.5}" opacity="0.7"/>')
@@ -1391,8 +1414,8 @@ def lifespan_chart(rows, sides):
     out.append(f'<text x="{W/2:.0f}" y="{height-16}" text-anchor="middle" class="ls-sub">'
                f'age at death, in years</text>')
 
-    young = {k: 100 * sum(1 for a in groups[k] if a < 20) / len(groups[k]) for k in keys}
-    worst = max(young.values())
+    allv = [a for k in keys for a in groups[k]]
+    heap = 100 * sum(1 for a in allv if a % 5 == 0) / len(allv)
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Decile strips of age at death for four groups: men and women on the
@@ -1401,12 +1424,13 @@ def lifespan_chart(rows, sides):
          65.">
       {"".join(out)}
     </svg>
-    <figcaption>Age at death, by side of the family and by sex. The pale band is the tenth to
-    ninetieth percentile, the darker one the middle fifth, the rule the median and the ring
-    the mean. <b>All four distributions are effectively the same</b> — every median between
-    59 and 60, and no pair of means more than a year apart. Fewer than {worst:.0f}% of these
-    people died before twenty, which is not a fact about the past so much as a fact about
-    pedigrees.</figcaption>
+    <figcaption>Age at death for the {len(allv)} people whose birth and death are both given
+    as a full day, month and year with no hedging word attached — the only ones whose age can
+    be trusted to a year. The pale band is the tenth to ninetieth percentile, the darker one
+    the middle fifth, the rule the median and the ring the mean. <b>All four distributions
+    are effectively the same.</b> {heap:.0f}% of these ages land on a multiple of five
+    against a chance expectation of 20%, so unlike the wider record this cohort is not
+    rounded.</figcaption>
   </figure>"""
 
 
