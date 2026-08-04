@@ -978,9 +978,13 @@ def ancestry_chart(rows, sides):
     A slopegraph because the point is the reordering. Counting immigrants and
     counting inheritance give almost opposite answers, and the lines cross.
     """
-    share, count, stops, gap = ancestry_weights(rows)
-    traced = sum(share.values())
+    raw, count, stops, gap = ancestry_weights(rows)
+    traced = sum(raw.values())
     lost = sum(stops.values()) + gap
+    # Composition is a share of what the record can place, not of the whole
+    # pedigree. Mixing the two would put "stops in Pennsylvania" on the same
+    # axis as "England", and an absence of evidence is not an ancestry.
+    share = collections.Counter({k: v / traced for k, v in raw.items()})
     tot_n = sum(count.values()) or 1
 
     names = [n for n in set(list(count) + list(share)) if count.get(n) or share.get(n)]
@@ -1032,8 +1036,8 @@ def ancestry_chart(rows, sides):
 
     fy = top + h + 46
     out.append(f'<text x="{W/2:.0f}" y="{fy}" text-anchor="middle" class="an-foot">'
-               f'crossed an ocean: {100*traced:.1f}% &#183; line stops before a coast: '
-               f'{100*lost:.1f}% &#183; total {100*(traced+lost):.0f}%</text>')
+               f'shares of the {100*traced:.0f}% of this pedigree that reaches a known '
+               f'origin &#183; the other {100*lost:.0f}% stops before a coast</text>')
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {fy + 26:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
          aria-label="Slopegraph comparing each origin's share of immigrant ancestors on the
@@ -1044,16 +1048,162 @@ def ancestry_chart(rows, sides):
       {"".join(out)}
     </svg>
     <figcaption>Left: each origin's share of the {tot_n} ancestors who crossed an ocean.
-    Right: its expected share of inherited DNA, since an ancestor {chr(110)} generations back
-    contributes 1/2<tspan></tspan>&#8319; of it. Line thickness is the DNA share. The lines
-    cross because the English arrived in the sixteen-hundreds and the Scots and Irish in the
-    eighteen-hundreds, and eight generations of halving is a factor of 256.</figcaption>
+    Right: its share of the inherited DNA, since an ancestor {chr(110)} generations back
+    contributes 1/2<tspan></tspan>&#8319; of it. Both columns are shares of what this record
+    can actually place — {100*traced:.0f}% of the pedigree; the missing {100*lost:.0f}% is
+    counted separately below rather than mixed in here. The lines cross because the English
+    arrived in the sixteen-hundreds and the Scots and Irish in the eighteen-hundreds, and
+    eight generations of halving is a factor of 256.</figcaption>
+  </figure>"""
+
+
+def coverage_chart(rows, sides):
+    """Waterfall: how much of the pedigree survives to a known origin.
+
+    Starts at the whole pedigree and knocks off each place the paper trail
+    stops, so the bar that remains is the only part the composition figure is
+    entitled to describe.
+    """
+    _share, _count, stops, gap = ancestry_weights(rows)
+    steps = []
+    named = ["Pennsylvania", "place unrecorded", "New York", "Massachusetts"]
+    for k in named:
+        if stops.get(k):
+            steps.append((k if k != "place unrecorded" else "America, place unrecorded",
+                          stops[k]))
+    rest = sum(v for k, v in stops.items() if k not in named)
+    if rest:
+        steps.append(("Vermont, Ohio, Connecticut and elsewhere", rest))
+    if gap:
+        steps.append(("one parent never recorded", gap))
+    remain = 1.0 - sum(v for _k, v in steps)
+
+    pad_l, pad_r, top, h = 34, 34, 96, 300
+    n = len(steps) + 2
+    span = W - pad_l - pad_r
+    bw = span / n * 0.62
+    gapx = span / n
+    y0 = top + h
+    scale = h / 1.0
+
+    out, x, running = [], pad_l + gapx * 0.19, 1.0
+    def bar(x, ytop, height, fill, op="0.85"):
+        return (f'<rect x="{x:.1f}" y="{ytop:.1f}" width="{bw:.1f}" '
+                f'height="{max(height,1.2):.1f}" fill="{fill}" opacity="{op}" rx="1.5"/>')
+    def label(x, y, txt, cls="wf-lab", anchor="middle"):
+        return (f'<text x="{x + bw/2:.1f}" y="{y:.1f}" text-anchor="{anchor}" '
+                f'class="{cls}">{txt}</text>')
+
+    out.append(bar(x, y0 - scale, scale, "var(--color-neutral-700)", "0.55"))
+    out.append(label(x, y0 - scale - 10, "100%", "wf-num"))
+    out.append(label(x, y0 + 18, "the whole", "wf-lab"))
+    out.append(label(x, y0 + 32, "pedigree", "wf-lab"))
+    x += gapx
+
+    for name, v in steps:
+        htop = y0 - running * scale
+        running -= v
+        out.append(bar(x, htop, v * scale, "var(--color-accent-600)", "0.5"))
+        out.append(f'<line x1="{x - gapx + bw:.1f}" y1="{htop:.1f}" x2="{x:.1f}" '
+                   f'y2="{htop:.1f}" stroke="var(--color-neutral-400)" stroke-width="0.8" '
+                   f'stroke-dasharray="2 2"/>')
+        out.append(label(x, htop - 8, f"&#8722;{v*100:.1f}%", "wf-num"))
+        words = name.split()
+        lines, cur = [], ""
+        for wd in words:
+            if len(cur) + len(wd) > 17:
+                lines.append(cur); cur = wd
+            else:
+                cur = (cur + " " + wd).strip()
+        lines.append(cur)
+        for i, ln in enumerate(lines[:3]):
+            out.append(label(x, y0 + 18 + i * 13, ln, "wf-lab"))
+        x += gapx
+
+    out.append(bar(x, y0 - remain * scale, remain * scale, "var(--color-accent-800)", "0.9"))
+    out.append(label(x, y0 - remain * scale - 10, f"{remain*100:.0f}%", "wf-num"))
+    out.append(label(x, y0 + 18, "reaches a", "wf-lab"))
+    out.append(label(x, y0 + 32, "known origin", "wf-lab"))
+    out.append(f'<line x1="{pad_l}" y1="{y0:.1f}" x2="{W-pad_r}" y2="{y0:.1f}" '
+               f'stroke="var(--color-divider)"/>')
+    H = y0 + 74
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {H:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="Waterfall chart. Starting from the whole pedigree at 100 per cent, each
+         bar removes the ancestry whose paper trail stops in a given place -- Pennsylvania,
+         unrecorded, New York, Massachusetts, elsewhere, and lines where one parent was never
+         recorded -- leaving {remain*100:.0f} per cent that reaches a known origin overseas.">
+      {"".join(out)}
+    </svg>
+    <figcaption>The first question: how much of this pedigree can be placed at all. Each
+    step removes the ancestry whose trail stops somewhere in America.
+    <b>{remain*100:.0f}% survives to a known origin</b>, and only that part is described by
+    the next figure. A quarter of everything lost stops in Pennsylvania, which is Ulster
+    Scots country.</figcaption>
+  </figure>"""
+
+
+def composition_chart(rows, sides):
+    """The placeable ancestry, as a share of itself."""
+    raw, count, _stops, _gap = ancestry_weights(rows)
+    traced = sum(raw.values())
+    parts = [(k, v / traced, count[k]) for k, v in raw.most_common()]
+    keep = [p for p in parts if p[1] >= 0.02]
+    small = sum(p[1] for p in parts if p[1] < 0.02)
+    smalln = sum(p[2] for p in parts if p[1] < 0.02)
+    if small:
+        folded = [p[0] for p in parts if p[1] < 0.02]
+        folded = [f.split(" &")[0].split(",")[0] for f in folded]
+        label = ", ".join(folded[:-1]) + " and " + folded[-1] if len(folded) > 1 else folded[0]
+        keep.append((label, small, smalln))
+
+    cx, cy, r, rin = 300, 250, 165, 92
+    COLS = ["var(--color-accent-700)", "var(--color-neutral-800)", "var(--color-accent-400)",
+            "var(--color-accent-600)", "var(--color-neutral-500)", "var(--color-neutral-400)"]
+    out, ang = [], -math.pi / 2
+    for i, (name, frac, n) in enumerate(keep):
+        sweep = frac * 2 * math.pi
+        a2 = ang + sweep
+        big = 1 if sweep > math.pi else 0
+        x1, y1 = cx + r * math.cos(ang), cy + r * math.sin(ang)
+        x2, y2 = cx + r * math.cos(a2), cy + r * math.sin(a2)
+        xi, yi = cx + rin * math.cos(a2), cy + rin * math.sin(a2)
+        xj, yj = cx + rin * math.cos(ang), cy + rin * math.sin(ang)
+        out.append(f'<path d="M {x1:.1f} {y1:.1f} A {r} {r} 0 {big} 1 {x2:.1f} {y2:.1f} '
+                   f'L {xi:.1f} {yi:.1f} A {rin} {rin} 0 {big} 0 {xj:.1f} {yj:.1f} Z" '
+                   f'fill="{COLS[i % len(COLS)]}" opacity="0.88"/>')
+        ang = a2
+    # legend, because labelling slices of two per cent inside a donut is unreadable
+    ly = 108
+    for i, (name, frac, n) in enumerate(keep):
+        out.append(f'<rect x="{cx + 250}" y="{ly - 10}" width="13" height="13" rx="2" '
+                   f'fill="{COLS[i % len(COLS)]}" opacity="0.88"/>')
+        out.append(f'<text x="{cx + 271}" y="{ly}" class="pi-lab">{name}</text>')
+        out.append(f'<text x="{cx + 271}" y="{ly + 16}" class="pi-sub">'
+                   f'<tspan class="pi-pc">{frac*100:.1f}%</tspan> &#183; {n} '
+                   f'{"crossing" if n == 1 else "crossings"}</text>')
+        ly += 46
+    out.append(f'<text x="{cx}" y="{cy - 4}" text-anchor="middle" class="pi-mid">'
+               f'{traced*100:.0f}%</text>')
+    out.append(f'<text x="{cx}" y="{cy + 15}" text-anchor="middle" class="pi-midsub">'
+               f'of the pedigree</text>')
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} 500" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="Donut chart of the placeable ancestry. England and Wales is 47 per cent
+         and Scotland and Ulster 45 per cent, between them nine tenths of it; Ireland other,
+         Germany, the Netherlands and a remainder make up the rest.">
+      {"".join(out)}
+    </svg>
+    <figcaption>The second question: of the {traced*100:.0f}% that can be placed, where it
+    came from. Two origins are nine-tenths of it and they are almost level — and one of them
+    got there with 305 people and the other with 14.</figcaption>
   </figure>"""
 
 
 CHARTS = {"lives": lives_chart, "occupancy": occupancy_chart, "flow": flow_map,
           "atlas": atlas_chart, "surnames": surnames_chart,
-          "crossings_side": crossings_by_side, "ancestry": ancestry_chart}
+          "crossings_side": crossings_by_side, "ancestry": ancestry_chart,
+          "coverage": coverage_chart, "composition": composition_chart}
 
 
 def main():

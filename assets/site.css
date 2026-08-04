@@ -867,3 +867,18 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
   fill: var(--color-accent-800); font-variant-numeric: tabular-nums lining-nums;
 }
 .chart-fig .an-foot { font-family: var(--font-body); font-size: 12px; fill: var(--ink-58); }
+
+.chart-fig .wf-num {
+  font-family: var(--font-body); font-size: 12px; fill: var(--color-accent-800);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.chart-fig .wf-lab { font-family: var(--font-body); font-size: 10.5px; fill: var(--ink-58); }
+.chart-fig .pi-lab { font-family: var(--font-body); font-size: 13px; fill: var(--color-text); }
+.chart-fig .pi-sub { font-family: var(--font-body); font-size: 11.5px; fill: var(--ink-58); }
+.chart-fig .pi-pc {
+  fill: var(--color-accent-800); font-variant-numeric: tabular-nums lining-nums;
+}
+.chart-fig .pi-mid {
+  font-family: var(--font-heading); font-size: 34px; fill: var(--color-accent-800);
+}
+.chart-fig .pi-midsub { font-family: var(--font-body); font-size: 11px; fill: var(--ink-58); }
