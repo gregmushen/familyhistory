@@ -53,6 +53,11 @@ ALIASES = {
     "Rebecca Nurse": "9421-W84",     # b. Rebecca Towne, hanged 19 July 1692
     "Mary Esty": "LZLN-LNC",         # b. Mary Towne, her sister, hanged 22 September
     "Mary Elizabeth Gilmore Gore": "KZL1-9LT",
+    # The tree spells him Lothrop and the record spells him Lothropp, which left
+    # the single most-featured person on the page -- 90 sources, 275 memories,
+    # a section of his own -- with no entry at all.
+    "John Lothropp": "LZG6-CH7",
+    "Rev. John Lothropp": "LZG6-CH7",
 }
 
 
@@ -220,6 +225,13 @@ def build_entries(people, couples, prev, member_of, page_text, force=()):
     for core in sorted(entries, key=lambda k: page_text.find(k)):
         pid = entries[core]["pid"]
         if pid in seen:
+            # Keep the spelling out of the appendix, but remember it: the
+            # discarded variant is often the only one that appears in linkable
+            # prose. "Rev. John Lothropp" wins the dedupe because it appears in
+            # the nav first, and every one of its occurrences is inside a
+            # heading or an existing anchor, so the man with the most sources
+            # on the page ended up with no link at all.
+            entries[seen[pid]].setdefault("also", []).append(core)
             del entries[core]
         else:
             seen[pid] = core
@@ -408,17 +420,29 @@ def link_names(page, entries):
         if pid in done:
             continue
         longer = [n for n in names if n != core and n.startswith(core + " ")]
-        pattern = re.compile(r"(?<![\w-])" + re.escape(core) + r"(?![\w-])")
-        for m in pattern.finditer(page):
-            if BEGIN in page[:m.start()] or not _linkable(page, m.start()):
-                continue
-            if any(page.startswith(n, m.start()) for n in longer):
-                continue
-            page = (page[:m.start()]
-                    + f'<a class="lin" href="#lin-{pid}" data-lin="{pid}">{core}</a>'
-                    + page[m.end():])
-            done.add(pid)
-            break
+        # Try the entry's own spelling first, then any variant the dedupe
+        # dropped, shortest last so the plainest form gets a chance.
+        variants = [core] + sorted(entries[core].get("also", []), key=len, reverse=True)
+        # Whitespace between the words of a name is flexible, because the prose
+        # is hard-wrapped and a name that happens to straddle a line break --
+        # "Elijah\n    Haven" -- would otherwise never match. The matched text
+        # is kept verbatim so the wrap survives the substitution.
+        for variant in variants:
+            if pid in done:
+                break
+            pattern = re.compile(r"(?<![\w-])"
+                                 + r"\s+".join(map(re.escape, variant.split()))
+                                 + r"(?![\w-])")
+            for m in pattern.finditer(page):
+                if BEGIN in page[:m.start()] or not _linkable(page, m.start()):
+                    continue
+                if any(page[m.start():].replace("\n", " ").startswith(x) for x in longer):
+                    continue
+                page = (page[:m.start()]
+                        + f'<a class="lin" href="#lin-{pid}" data-lin="{pid}">{m.group(0)}</a>'
+                        + page[m.end():])
+                done.add(pid)
+                break
     return page, len(done)
 
 
@@ -432,7 +456,11 @@ def main():
     # Both generated regions are cut before names are resolved, so a run reads
     # only hand-written text and repeated runs converge.
     stripped = re.sub(re.escape(CBEGIN) + r".*?" + re.escape(CEND), "", stripped, flags=re.S)
-    page_text = re.sub(r"<[^>]+>", " ", stripped)
+    # Collapse whitespace as well as tags. The prose is hard-wrapped, so a name
+    # straddling a line break reads as "Elijah\n    Haven" and would fail a
+    # plain containment test -- which is how four well-sourced people ended up
+    # with no entry at all rather than merely no link.
+    page_text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", stripped))
 
     coll = collapse(people, couples, up)
     forced = [pid for cid, _, _ in coll["closest"]
