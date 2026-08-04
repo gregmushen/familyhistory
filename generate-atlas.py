@@ -1308,15 +1308,26 @@ VAGUE_DATE = re.compile(r"\b(about|abt|circa|c\.|bef|aft|before|after|estimated|
                         re.I)
 
 
+MAX_GENERATION = 12   # past here the sourcing collapses; see clean_age
+
+
 def clean_age(row):
-    """Age at death, but only where the dates can carry the weight.
+    """Age at death, but only where the dates and the sourcing can carry it.
 
     Both ends must be a full day-month-year with no hedging word attached.
     Year-only records are where the rounding lives: across the whole tree 25.8%
     of ages land on a multiple of five against a chance 20%, and inside this
     filter it falls to chance. The filter is not tidiness -- it is the
     difference between a recorded age and a remembered one.
+
+    Generation 12 is the other cut, and the sourcing picks the number rather
+    than taste: the average person at generation 12 carries 14.5 sources, at 13
+    it is 7.8, at 14 it is 5.6, and by 16 it is 2.8. That is where this tree
+    stops being records and starts being other people's trees.
     """
+    gen = row.get("generation")
+    if gen is None or gen > MAX_GENERATION:
+        return None
     birth = (row.get("birth_date") or "").strip()
     death = (row.get("death_date") or "").strip()
     if VAGUE_DATE.search(birth) or VAGUE_DATE.search(death):
@@ -1353,7 +1364,7 @@ def lifespan_chart(rows, sides):
         groups[(side, "men" if r["gender"] == "MALE" else "women")].append(age)
 
     keys = [(s, g) for s in ("father's side", "mother's side") for g in ("men", "women")]
-    keys = [k for k in keys if len(groups.get(k, [])) >= 60]
+    keys = [k for k in keys if len(groups.get(k, [])) >= 40]
     lo, hi = 15, 105
     pad_l, pad_r, top, row_h = 190, 120, 96, 74
     span = W - pad_l - pad_r
