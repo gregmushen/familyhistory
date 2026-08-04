@@ -552,7 +552,8 @@ def surname(name):
     return out if len(out) > 1 and out[0].isupper() else None
 
 
-LAST_COUPLE = "PXFV-YG6_PXFK-QCT"
+ROOT_COUPLE = "PXFK-VML_"          # the record's subject, alone
+LAST_COUPLE = "PXFV-YG6_PXFK-QCT"  # the marriage the two sides meet in
 
 SIDES = [("father", "Down the father's side only", "var(--color-accent-700)"),
          ("both", "On both sides", "var(--color-accent-400)"),
@@ -833,9 +834,191 @@ def crossings_by_side(rows, sides):
   </figure>"""
 
 
+AMERICA = ("United States", "Colonial America", "Massachusetts", "Connecticut",
+           "Rhode Island", "New Hampshire", "Vermont", "Maine", "New York", "New Jersey",
+           "Pennsylvania", "Virginia", "Maryland", "Ohio", "Plymouth Colony", "Canada",
+           "British North America", "New Netherland", "Delaware", "Carolina", "Georgia")
+
+ORIGIN_NATIONS = [
+    ("England", ("England", "Wales", "Cornwall")),
+    ("Ulster & Ireland", ("Ireland", "Ulster", "Antrim", "Down", "Derry", "Londonderry",
+                          "Donegal", "Tyrone")),
+    ("Scotland", ("Scotland",)),
+    ("Germany & the Palatinate", ("Germany", "Pfalz", "Palatin", "Hesse", "Baden",
+                                  "Wurttemberg", "Rhineland", "Prussia", "Bavaria", "Saxony")),
+    ("Netherlands", ("Netherlands", "Holland", "Utrecht", "Zeeland", "Gelderland")),
+    ("France", ("France", "Normandy", "Perche", "Rouen")),
+    ("Switzerland", ("Switzerland", "Swiss")),
+    ("Scandinavia", ("Sweden", "Norway", "Denmark", "Finland")),
+    ("Belgium & Walloon", ("Belgium", "Hainaut", "Walloon", "Wallon")),
+]
+
+
+def born_in_america(place):
+    return bool(place) and any(k in place for k in AMERICA)
+
+
+def origin_nation(place):
+    return next((n for n, keys in ORIGIN_NATIONS if any(k in (place or "") for k in keys)),
+                None)
+
+
+def ancestry_weights(people):
+    """Expected share of autosomal DNA for every traced ancestor.
+
+    Each parent contributes half of what their child contributes, so an ancestor
+    n generations back is worth 1/2^n -- and a person reached by several
+    different lines of descent gets the sum of all of them, which is what makes
+    this worth computing rather than assuming.
+
+    Returns (weight by pid, share crossing the ocean by nation, count by nation).
+    """
+    db = connect(DB)
+    db.row_factory = sqlite3.Row
+    couples = {r["couple_id"]: dict(r) for r in db.execute("SELECT * FROM fs_couples")}
+    up = collections.defaultdict(list)
+    for r in db.execute("SELECT * FROM fs_edges"):
+        if r["parent_couple_id"] in couples and r["child_couple_id"] in couples:
+            up[r["child_couple_id"]].append((r["parent_couple_id"], r["via"]))
+    db.close()
+
+    # Topological order: every descendant settled before its ancestors, so a
+    # weight is final by the time it is halved and passed upward.
+    seen, order, stack = set(), [], [(ROOT_COUPLE, False)]
+    while stack:
+        node, done = stack.pop()
+        if done:
+            order.append(node)
+            continue
+        if node in seen:
+            continue
+        seen.add(node)
+        stack.append((node, True))
+        for parent, _ in up.get(node, []):
+            stack.append((parent, False))
+    order.reverse()
+
+    weight = collections.defaultdict(float)
+    weight[couples[ROOT_COUPLE]["parent1_pid"]] = 1.0
+    for cid in order:
+        c = couples[cid]
+        for parent_id, via in up.get(cid, []):
+            heir = c["parent1_pid"] if via == "parent1" else c["parent2_pid"]
+            if not heir:
+                continue
+            share = weight[heir] / 2.0
+            pc = couples[parent_id]
+            for key in ("parent1_pid", "parent2_pid"):
+                if pc.get(key):
+                    weight[pc[key]] += share
+
+    # The crossing point is the last foreign-born person in a line: born abroad,
+    # with an American-born child. Counting every foreign-born ancestor would
+    # double-count a line that was still crossing two generations running.
+    by_pid = {p["pid"]: p for p in people}
+    nation_share, nation_count, unknown = collections.Counter(), collections.Counter(), 0.0
+    for cid, edges in up.items():
+        c = couples[cid]
+        for parent_id, via in edges:
+            heir = c["parent1_pid"] if via == "parent1" else c["parent2_pid"]
+            if not heir or not born_in_america(by_pid.get(heir, {}).get("birth_place")):
+                continue
+            pc = couples[parent_id]
+            for key in ("parent1_pid", "parent2_pid"):
+                pid = pc.get(key)
+                place = by_pid.get(pid, {}).get("birth_place") if pid else None
+                if not place or born_in_america(place):
+                    continue
+                nat = origin_nation(place)
+                if nat:
+                    nation_share[nat] += weight.get(pid, 0.0)
+                    nation_count[nat] += 1
+                else:
+                    unknown += weight.get(pid, 0.0)
+    return weight, nation_share, nation_count, unknown
+
+
+def ancestry_chart(rows, sides):
+    """Headcount of immigrants against expected share of DNA.
+
+    A slopegraph because the point is the reordering. Counting immigrants and
+    counting inheritance give almost opposite answers, and the lines cross.
+    """
+    _w, share, count, unknown = ancestry_weights(rows)
+    traced = sum(share.values()) + unknown
+    tot_n = sum(count.values()) or 1
+
+    names = [n for n, _ in ORIGIN_NATIONS if count.get(n) or share.get(n)]
+    names.sort(key=lambda n: -share.get(n, 0.0))
+
+    pad_l, pad_r, top, h = 250, 250, 96, 430
+    x1, x2 = pad_l, W - pad_r
+    lmax = max(count.values()) / tot_n
+    rmax = max(share.values())
+
+    def ly(n):
+        return top + h * (1 - (count.get(n, 0) / tot_n) / lmax)
+
+    def ry(n):
+        return top + h * (1 - share.get(n, 0.0) / rmax)
+
+    out = [f'<text x="{x1}" y="{top - 44}" text-anchor="end" class="an-hd">share of the '
+           f'{tot_n} immigrants</text>',
+           f'<text x="{x2}" y="{top - 44}" class="an-hd">share of the DNA</text>',
+           f'<line x1="{x1}" y1="{top - 24}" x2="{x1}" y2="{top + h + 10}" '
+           f'stroke="var(--color-divider)"/>',
+           f'<line x1="{x2}" y1="{top - 24}" x2="{x2}" y2="{top + h + 10}" '
+           f'stroke="var(--color-divider)"/>']
+
+    # de-overlap the labels on each side
+    def stack(fn):
+        pts = sorted(((fn(n), n) for n in names))
+        out2, prev = [], None
+        for y, n in pts:
+            yy = y if prev is None else max(y, prev + 17)
+            out2.append((n, y, yy)); prev = yy
+        return {n: (y, yy) for n, y, yy in out2}
+    L, R = stack(ly), stack(ry)
+
+    for n in names:
+        c, s = count.get(n, 0) / tot_n, share.get(n, 0.0)
+        rise = s > c
+        colour = "var(--color-accent-700)" if rise else "var(--color-neutral-700)"
+        out.append(f'<path d="M {x1} {L[n][0]:.1f} C {x1 + 120} {L[n][0]:.1f}, '
+                   f'{x2 - 120} {R[n][0]:.1f}, {x2} {R[n][0]:.1f}" fill="none" '
+                   f'stroke="{colour}" stroke-width="{1 + 9 * s:.2f}" opacity="0.45"/>')
+        out.append(f'<circle cx="{x1}" cy="{L[n][0]:.1f}" r="3.5" fill="{colour}"/>')
+        out.append(f'<circle cx="{x2}" cy="{R[n][0]:.1f}" r="3.5" fill="{colour}"/>')
+        out.append(f'<text x="{x1 - 12}" y="{L[n][1] + 4:.1f}" text-anchor="end" '
+                   f'class="an-lab">{n} <tspan class="an-n">{count.get(n,0)}</tspan> '
+                   f'<tspan class="an-pc">{100*c:.0f}%</tspan></text>')
+        out.append(f'<text x="{x2 + 12}" y="{R[n][1] + 4:.1f}" class="an-lab">'
+                   f'<tspan class="an-pc">{100*s:.1f}%</tspan> {n}</text>')
+
+    fy = top + h + 46
+    out.append(f'<text x="{W/2:.0f}" y="{fy}" text-anchor="middle" class="an-foot">'
+               f'traced to a crossing: {100*traced:.0f}% &#183; untraced or unknown: '
+               f'{100*(1-traced):.0f}%</text>')
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {fy + 26:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="Slopegraph comparing each origin's share of immigrant ancestors on the
+         left with its expected share of inherited DNA on the right. England falls from
+         about 85 per cent of the immigrants to about a third of the DNA, while Ulster and
+         Ireland rise from 4 per cent to 22 and Scotland from 1.5 per cent to 13. The lines
+         cross.">
+      {"".join(out)}
+    </svg>
+    <figcaption>Left: each origin's share of the {tot_n} ancestors who crossed an ocean.
+    Right: its expected share of inherited DNA, since an ancestor {chr(110)} generations back
+    contributes 1/2<tspan></tspan>&#8319; of it. Line thickness is the DNA share. The lines
+    cross because the English arrived in the sixteen-hundreds and the Scots and Irish in the
+    eighteen-hundreds, and eight generations of halving is a factor of 256.</figcaption>
+  </figure>"""
+
+
 CHARTS = {"lives": lives_chart, "occupancy": occupancy_chart, "flow": flow_map,
           "atlas": atlas_chart, "surnames": surnames_chart,
-          "crossings_side": crossings_by_side}
+          "crossings_side": crossings_by_side, "ancestry": ancestry_chart}
 
 
 def main():

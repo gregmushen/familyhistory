@@ -856,3 +856,14 @@ dialog.ln-dialog::backdrop { background: rgba(20,18,16,.52); }
   content: ""; position: absolute; left: 30px; top: 11px; width: 5px; height: 1px;
   background: var(--color-accent-400);
 }
+
+.chart-fig .an-hd {
+  font-family: var(--font-body); font-size: 11px; fill: var(--ink-58);
+  letter-spacing: 0.09em; text-transform: uppercase;
+}
+.chart-fig .an-lab { font-family: var(--font-body); font-size: 13px; fill: var(--color-text); }
+.chart-fig .an-n { fill: var(--ink-50); font-variant-numeric: tabular-nums lining-nums; }
+.chart-fig .an-pc {
+  fill: var(--color-accent-800); font-variant-numeric: tabular-nums lining-nums;
+}
+.chart-fig .an-foot { font-family: var(--font-body); font-size: 12px; fill: var(--ink-58); }
