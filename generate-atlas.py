@@ -57,10 +57,20 @@ def first_year(*values):
 
 
 def lifespan(row):
-    """(born, died) as years, from the dated fields or the lifespan string."""
-    years = YEAR_RE.findall(row["lifespan"] or "")
-    born = first_year(row["birth_date"]) or (int(years[0]) if years else None)
-    died = first_year(row["death_date"]) or (int(years[1]) if len(years) > 1 else None)
+    """(born, died) as years.
+
+    The lifespan string is positional -- "1687-1687", "-1600", "1840-Deceased" --
+    so it has to be split on the dash rather than scanned for years. Reading the
+    first year found as the birth year turns 243 records that carry only a death
+    year into people who died aged zero, which is how this record briefly
+    acquired a few hundred spurious infant deaths.
+    """
+    text = row["lifespan"] or ""
+    left, _, right = text.partition("\u2013")
+    if not _:
+        left, _, right = text.partition("-")
+    born = first_year(row["birth_date"]) or first_year(left)
+    died = first_year(row["death_date"]) or first_year(right)
     return born, died
 
 
