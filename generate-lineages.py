@@ -88,6 +88,12 @@ ALIASES = {
     "Elizabeth Smith": "LYNG-SRH",          # 1846-1938, m. Robert Linton
     "John Porter": "L89R-C2W",              # 1774-1848, the one in the chain
     "Samuel Albert Mushen": "G4GP-J5B",     # 1911-1975, who married Beulah Gore
+    # Non-ancestors the record deliberately discusses. Nothing off the direct
+    # line is linked unless it is named here.
+    "Ruth Child": "LTPC-5W8",               # the sister Stephen Fay married
+    "Stephen Fay": "LT4N-ZCM",              # published as an ancestor, retracted
+    "Anna Barbara Riemensnyder": "LTBM-DZT",
+    "Catharina Riemensnyder": "LNV6-RGQ",
 }
 
 
@@ -240,15 +246,21 @@ def build_entries(people, couples, prev, member_of, page_text, force=()):
         if not ranked:
             continue
         direct = [r for r in ranked if r[0]]
-        # A direct ancestor always beats a collateral of the same name. Two
-        # direct ancestors sharing a name cannot be told apart from the page
-        # text, so refuse rather than guess -- a wrong link here is the Fay
-        # error again, published silently.
-        pool = direct or ranked
-        if len(pool) > 1 and direct:
-            ambiguous.append((core, sorted(p for _, p in pool)))
+        # Only ancestors are matched by name. Two thirds of this mirror -- 16,367
+        # of 24,263 people, in 8,811 couples that were never connected to the
+        # root -- has no traced relationship to this family at all, and matching
+        # page text against that fringe is what linked "Timothy Warner" to a man
+        # who died in 1760, "John Russell" to a Dorset knight of 1175, and
+        # "William Barker" to an infant who lived one year. A non-ancestor now
+        # reaches the page only when a human names them in ALIASES below.
+        if not direct:
             continue
-        chain, pid = max(pool, key=lambda r: (people[r[1]]["source_count"] or 0))
+        # Two ancestors sharing a name cannot be told apart from the page text,
+        # so refuse rather than guess.
+        if len(direct) > 1:
+            ambiguous.append((core, sorted(q for _, q in direct)))
+            continue
+        chain, pid = direct[0]
         entries[core] = {"pid": pid, "person": people[pid], "chain": chain,
                          "note": None if chain else
                          collateral_note(pid, people, couples, prev, member_of)}
