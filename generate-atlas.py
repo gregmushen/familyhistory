@@ -16,6 +16,7 @@ import math
 import os
 import re
 import sqlite3
+import statistics
 import sys
 
 DB = os.path.expanduser("~/.local/share/familysearch-pp-cli/data.db")
@@ -1057,89 +1058,181 @@ def ancestry_chart(rows, sides):
   </figure>"""
 
 
-def coverage_chart(rows, sides):
-    """Waterfall: how much of the pedigree survives to a known origin.
+NEW_ENGLAND = ("Massachusetts", "Connecticut", "New Hampshire", "Vermont",
+               "Rhode Island", "Maine")
+ULSTER_SURNAMES_US = {"Leard", "Gartley", "Campbell", "Gilmore", "Borland", "Boreland",
+                      "Ross", "Culbertson", "Gibson", "Jamison", "Mitchell", "Barkley",
+                      "Templeton", "Craig", "Blair", "Boyd", "Owen"}
 
-    Starts at the whole pedigree and knocks off each place the paper trail
-    stops, so the bar that remains is the only part the composition figure is
-    entitled to describe.
+
+def classify_gap(person):
+    """A probable origin for a line that stops in America, or None.
+
+    Inference, not evidence, and labelled that way wherever it is shown. A
+    colonial New England birth before 1800 is Great Migration stock in almost
+    every case; a Pennsylvania line carrying an Ulster surname is Ulster Scots;
+    a Mohawk Valley line is Palatine. Everything else stays unclear rather than
+    being pushed into whichever bucket flatters the argument.
     """
-    _share, _count, stops, gap = ancestry_weights(rows)
-    steps = []
-    named = ["Pennsylvania", "place unrecorded", "New York", "Massachusetts"]
-    for k in named:
-        if stops.get(k):
-            steps.append((k if k != "place unrecorded" else "America, place unrecorded",
-                          stops[k]))
-    rest = sum(v for k, v in stops.items() if k not in named)
-    if rest:
-        steps.append(("Vermont, Ohio, Connecticut and elsewhere", rest))
-    if gap:
-        steps.append(("one parent never recorded", gap))
-    remain = 1.0 - sum(v for _k, v in steps)
+    blob = f"{person.get('birth_place') or ''} {person.get('death_place') or ''}"
+    surname_last = (person.get("name") or "").split()[-1] if person.get("name") else ""
+    years = re.findall(r"\b(1[5-9]\d\d)\b", person.get("lifespan") or "")
+    born = int(years[0]) if years else None
+    if "Pennsylvania" in blob and surname_last in ULSTER_SURNAMES_US:
+        return "Scotland & Ulster", "Pennsylvania, Ulster surname"
+    if any(k in blob for k in ("Mohawk", "Montgomery, New York", "Herkimer", "Palatine")):
+        return "Germany & the Palatinate", "Mohawk Valley"
+    if any(k in blob for k in NEW_ENGLAND) and (born or 9999) < 1800:
+        return "England & Wales", "colonial New England"
+    if not blob.strip():
+        return None, "no place recorded at all"
+    return None, "origin unclear"
 
-    pad_l, pad_r, top, h = 34, 34, 96, 300
+
+def gap_breakdown(rows):
+    """Where the unplaced ancestry sits, and what can be inferred about it."""
+    _share, _count, stops, gap = ancestry_weights(rows)
+    by = {p["pid"]: p for p in rows}
+    db = connect(DB)
+    db.row_factory = sqlite3.Row
+    couples = {r["couple_id"]: dict(r) for r in db.execute("SELECT * FROM fs_couples")}
+    up = collections.defaultdict(list)
+    for r in db.execute("SELECT * FROM fs_edges"):
+        if r["parent_couple_id"] in couples and r["child_couple_id"] in couples:
+            up[r["child_couple_id"]].append((r["parent_couple_id"], r["via"]))
+    db.close()
+
+    def abroad(pid):
+        pl = by.get(pid, {}).get("birth_place")
+        return bool(pl) and not born_in_america(pl)
+
+    seen, order, stack = set(), [], [(ROOT_COUPLE, False)]
+    while stack:
+        node, done = stack.pop()
+        if done:
+            order.append(node); continue
+        if node in seen:
+            continue
+        seen.add(node); stack.append((node, True))
+        for p, _ in up.get(node, []):
+            stack.append((p, False))
+    order.reverse()
+    weight = collections.defaultdict(float)
+    weight[couples[ROOT_COUPLE]["parent1_pid"]] = 1.0
+    passes = set()
+    for cid in order:
+        c = couples[cid]
+        for pid_c, via in up.get(cid, []):
+            heir = c["parent1_pid"] if via == "parent1" else c["parent2_pid"]
+            if not heir or abroad(heir):
+                continue
+            passes.add(heir)
+            share = weight[heir] / 2.0
+            pc = couples[pid_c]
+            for k in ("parent1_pid", "parent2_pid"):
+                if pc.get(k):
+                    weight[pc[k]] += share
+
+    probable, unclear = collections.Counter(), collections.Counter()
+    for pid, v in weight.items():
+        if v <= 1e-12 or abroad(pid) or pid in passes:
+            continue
+        origin, why = classify_gap(by.get(pid, {}))
+        if origin:
+            probable[origin] += v
+        else:
+            unclear[why] += v
+    unclear["one parent never recorded"] += gap
+    return probable, unclear
+
+
+def coverage_chart(rows, sides):
+    """Waterfall: the pedigree reduced to what can be placed, by origin not by state.
+
+    The steps that come off are labelled by what the missing ancestry probably
+    was, because 'stops in Pennsylvania' is not an origin -- it is the place a
+    paper trail ended, and putting a state on the same axis as a country was
+    the conflation this figure exists to undo.
+    """
+    share, _count, _stops, _gap = ancestry_weights(rows)
+    traced = sum(share.values())
+    probable, unclear = gap_breakdown(rows)
+
+    steps = [(f"probably {k}", v, "prob") for k, v in probable.most_common()]
+    steps += [(k, v, "unk") for k, v in unclear.most_common()]
+
+    pad_l, pad_r, top, h = 30, 30, 104, 286
     n = len(steps) + 2
     span = W - pad_l - pad_r
-    bw = span / n * 0.62
     gapx = span / n
+    bw = gapx * 0.6
     y0 = top + h
-    scale = h / 1.0
+    out, x, running = [], pad_l + gapx * 0.2, 1.0
 
-    out, x, running = [], pad_l + gapx * 0.19, 1.0
-    def bar(x, ytop, height, fill, op="0.85"):
+    def bar(x, ytop, ht, fill, op):
         return (f'<rect x="{x:.1f}" y="{ytop:.1f}" width="{bw:.1f}" '
-                f'height="{max(height,1.2):.1f}" fill="{fill}" opacity="{op}" rx="1.5"/>')
-    def label(x, y, txt, cls="wf-lab", anchor="middle"):
-        return (f'<text x="{x + bw/2:.1f}" y="{y:.1f}" text-anchor="{anchor}" '
+                f'height="{max(ht,1.2):.1f}" fill="{fill}" opacity="{op}" rx="1.5"/>')
+
+    def cap(x, y, txt, cls):
+        return (f'<text x="{x + bw/2:.1f}" y="{y:.1f}" text-anchor="middle" '
                 f'class="{cls}">{txt}</text>')
 
-    out.append(bar(x, y0 - scale, scale, "var(--color-neutral-700)", "0.55"))
-    out.append(label(x, y0 - scale - 10, "100%", "wf-num"))
-    out.append(label(x, y0 + 18, "the whole", "wf-lab"))
-    out.append(label(x, y0 + 32, "pedigree", "wf-lab"))
+    out.append(bar(x, y0 - h, h, "var(--color-neutral-700)", "0.5"))
+    out.append(cap(x, y0 - h - 10, "100%", "wf-num"))
+    out.append(cap(x, y0 + 18, "the whole", "wf-lab"))
+    out.append(cap(x, y0 + 31, "pedigree", "wf-lab"))
     x += gapx
 
-    for name, v in steps:
-        htop = y0 - running * scale
+    for name, v, kind in steps:
+        htop = y0 - running * h
         running -= v
-        out.append(bar(x, htop, v * scale, "var(--color-accent-600)", "0.5"))
+        colour = ("var(--color-accent-500)" if kind == "prob"
+                  else "var(--color-neutral-500)")
+        out.append(bar(x, htop, v * h, colour, "0.55" if kind == "prob" else "0.35"))
         out.append(f'<line x1="{x - gapx + bw:.1f}" y1="{htop:.1f}" x2="{x:.1f}" '
                    f'y2="{htop:.1f}" stroke="var(--color-neutral-400)" stroke-width="0.8" '
                    f'stroke-dasharray="2 2"/>')
-        out.append(label(x, htop - 8, f"&#8722;{v*100:.1f}%", "wf-num"))
-        words = name.split()
-        lines, cur = [], ""
+        out.append(cap(x, htop - 8, f"&#8722;{v*100:.1f}%", "wf-num"))
+        words, lines, cur = name.split(), [], ""
         for wd in words:
-            if len(cur) + len(wd) > 17:
+            if len(cur) + len(wd) > 15:
                 lines.append(cur); cur = wd
             else:
                 cur = (cur + " " + wd).strip()
         lines.append(cur)
         for i, ln in enumerate(lines[:3]):
-            out.append(label(x, y0 + 18 + i * 13, ln, "wf-lab"))
+            out.append(cap(x, y0 + 18 + i * 13, ln, "wf-lab"))
         x += gapx
 
-    out.append(bar(x, y0 - remain * scale, remain * scale, "var(--color-accent-800)", "0.9"))
-    out.append(label(x, y0 - remain * scale - 10, f"{remain*100:.0f}%", "wf-num"))
-    out.append(label(x, y0 + 18, "reaches a", "wf-lab"))
-    out.append(label(x, y0 + 32, "known origin", "wf-lab"))
+    out.append(bar(x, y0 - running * h, running * h, "var(--color-accent-800)", "0.9"))
+    out.append(cap(x, y0 - running * h - 10, f"{running*100:.0f}%", "wf-num"))
+    out.append(cap(x, y0 + 18, "traced to a", "wf-lab"))
+    out.append(cap(x, y0 + 31, "known origin", "wf-lab"))
     out.append(f'<line x1="{pad_l}" y1="{y0:.1f}" x2="{W-pad_r}" y2="{y0:.1f}" '
                f'stroke="var(--color-divider)"/>')
-    H = y0 + 74
+    out.append(f'<rect x="{pad_l}" y="{top-46}" width="13" height="13" rx="2" '
+               f'fill="var(--color-accent-500)" opacity="0.55"/>')
+    out.append(f'<text x="{pad_l+20}" y="{top-35}" class="wf-key">a probable origin, from '
+               f'place and surname &#8212; inference, not evidence</text>')
+    out.append(f'<rect x="{pad_l+352}" y="{top-46}" width="13" height="13" rx="2" '
+               f'fill="var(--color-neutral-500)" opacity="0.35"/>')
+    out.append(f'<text x="{pad_l+372}" y="{top-35}" class="wf-key">no usable inference</text>')
+    prob_total = sum(probable.values())
+    H = y0 + 72
     return f"""  <figure class="chart-fig">
     <svg viewBox="0 0 {W} {H:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
-         aria-label="Waterfall chart. Starting from the whole pedigree at 100 per cent, each
-         bar removes the ancestry whose paper trail stops in a given place -- Pennsylvania,
-         unrecorded, New York, Massachusetts, elsewhere, and lines where one parent was never
-         recorded -- leaving {remain*100:.0f} per cent that reaches a known origin overseas.">
+         aria-label="Waterfall from the whole pedigree down to the {traced*100:.0f} per cent
+         traced to a known origin. The steps removed are labelled by what the missing
+         ancestry probably was rather than by the American state the record stops in: about
+         {prob_total*100:.0f} per cent can be given a probable origin from place and surname,
+         and the rest cannot.">
       {"".join(out)}
     </svg>
-    <figcaption>The first question: how much of this pedigree can be placed at all. Each
-    step removes the ancestry whose trail stops somewhere in America.
-    <b>{remain*100:.0f}% survives to a known origin</b>, and only that part is described by
-    the next figure. A quarter of everything lost stops in Pennsylvania, which is Ulster
-    Scots country.</figcaption>
+    <figcaption>How much of the pedigree can be placed, and what the rest probably was. Each
+    step is labelled by likely origin rather than by the state the trail ends in, because a
+    state is not an origin. <b>{traced*100:.0f}% reaches a documented crossing</b>; another
+    <b>{prob_total*100:.0f}% has a probable one</b> from place and surname together; the
+    remainder has neither. Only the final bar is described by the next figure.</figcaption>
   </figure>"""
 
 
@@ -1200,7 +1293,115 @@ def composition_chart(rows, sides):
   </figure>"""
 
 
+def lifespan_chart(rows, sides):
+    """Age at death by side of the family and by sex, as decile strips.
+
+    The headline is that there is almost nothing to see, and the reason there is
+    almost nothing to see is the interesting part: everyone in a pedigree
+    survived to have children, so the distribution has had its left tail removed
+    before the chart starts.
+    """
+    dad, mom = sides
+    groups = collections.defaultdict(list)
+    for r in rows:
+        if "Living" in (r["lifespan"] or ""):
+            continue
+        born, died = lifespan(r)
+        if not born or not died:
+            continue
+        age = died - born
+        if age < 0 or age > 110:
+            continue
+        in_d, in_m = r["pid"] in dad, r["pid"] in mom
+        side = ("father's side" if in_d and not in_m
+                else "mother's side" if in_m and not in_d else None)
+        if side is None or r.get("gender") not in ("MALE", "FEMALE"):
+            continue
+        groups[(side, "men" if r["gender"] == "MALE" else "women")].append(age)
+
+    keys = [(s, g) for s in ("father's side", "mother's side") for g in ("men", "women")]
+    keys = [k for k in keys if len(groups.get(k, [])) >= 30]
+    lo, hi = 0, 100
+    pad_l, pad_r, top, row_h = 190, 120, 96, 74
+    span = W - pad_l - pad_r
+    x = lambda a: pad_l + span * (min(max(a, lo), hi) - lo) / (hi - lo)
+    height = top + len(keys) * row_h + 76
+
+    def dec(v):
+        v = sorted(v)
+        return [v[min(int(len(v) * i / 10), len(v) - 1)] for i in range(1, 10)]
+
+    out = []
+    for t in range(0, 101, 10):
+        out.append(f'<line x1="{x(t):.1f}" y1="{top-26}" x2="{x(t):.1f}" '
+                   f'y2="{top + len(keys)*row_h - 20:.1f}" stroke="var(--color-divider)" '
+                   f'stroke-width="{1 if t % 20 == 0 else 0.5}" opacity="0.7"/>')
+        out.append(f'<text x="{x(t):.1f}" y="{top-34}" text-anchor="middle" class="ax">{t}</text>')
+
+    for i, k in enumerate(keys):
+        v = groups[k]
+        d = dec(v)
+        y = top + i * row_h
+        colour = ("var(--color-accent-700)" if k[0].startswith("father")
+                  else "var(--color-neutral-800)")
+        out.append(f'<rect x="{x(d[0]):.1f}" y="{y:.1f}" width="{x(d[8])-x(d[0]):.1f}" '
+                   f'height="20" rx="3" fill="{colour}" opacity="0.14"/>')
+        out.append(f'<rect x="{x(d[2]):.1f}" y="{y:.1f}" width="{x(d[6])-x(d[2]):.1f}" '
+                   f'height="20" rx="3" fill="{colour}" opacity="0.3"/>')
+        out.append(f'<rect x="{x(d[3]):.1f}" y="{y:.1f}" width="{x(d[5])-x(d[3]):.1f}" '
+                   f'height="20" rx="2" fill="{colour}" opacity="0.45"/>')
+        med = statistics.median(v)
+        out.append(f'<line x1="{x(med):.1f}" y1="{y-4:.0f}" x2="{x(med):.1f}" '
+                   f'y2="{y+24:.0f}" stroke="{colour}" stroke-width="2.4"/>')
+        mean = statistics.mean(v)
+        out.append(f'<circle cx="{x(mean):.1f}" cy="{y+10:.0f}" r="3.4" fill="none" '
+                   f'stroke="{colour}" stroke-width="1.6"/>')
+        out.append(f'<text x="{pad_l-16}" y="{y+8:.0f}" text-anchor="end" class="ls-lab">'
+                   f'{k[0]} &#183; {k[1]}</text>')
+        out.append(f'<text x="{pad_l-16}" y="{y+22:.0f}" text-anchor="end" class="ls-sub">'
+                   f'{len(v):,} people</text>')
+        out.append(f'<text x="{W-pad_r+14}" y="{y+8:.0f}" class="ls-sub">median '
+                   f'<tspan class="ls-n">{med:.0f}</tspan></text>')
+        out.append(f'<text x="{W-pad_r+14}" y="{y+22:.0f}" class="ls-sub">mean '
+                   f'<tspan class="ls-n">{mean:.1f}</tspan></text>')
+
+    ky = top + len(keys) * row_h + 6
+    out.append(f'<rect x="{pad_l}" y="{ky}" width="26" height="11" rx="2" '
+               f'fill="var(--color-neutral-800)" opacity="0.14"/>')
+    out.append(f'<text x="{pad_l+33}" y="{ky+10}" class="ls-sub">10th&#8211;90th percentile</text>')
+    out.append(f'<rect x="{pad_l+180}" y="{ky}" width="26" height="11" rx="2" '
+               f'fill="var(--color-neutral-800)" opacity="0.45"/>')
+    out.append(f'<text x="{pad_l+213}" y="{ky+10}" class="ls-sub">40th&#8211;60th</text>')
+    out.append(f'<line x1="{pad_l+310}" y1="{ky-2}" x2="{pad_l+310}" y2="{ky+13}" '
+               f'stroke="var(--color-neutral-800)" stroke-width="2.4"/>')
+    out.append(f'<text x="{pad_l+318}" y="{ky+10}" class="ls-sub">median</text>')
+    out.append(f'<circle cx="{pad_l+392}" cy="{ky+5}" r="3.4" fill="none" '
+               f'stroke="var(--color-neutral-800)" stroke-width="1.6"/>')
+    out.append(f'<text x="{pad_l+402}" y="{ky+10}" class="ls-sub">mean</text>')
+    out.append(f'<text x="{W/2:.0f}" y="{height-16}" text-anchor="middle" class="ls-sub">'
+               f'age at death, in years</text>')
+
+    young = {k: 100 * sum(1 for a in groups[k] if a < 20) / len(groups[k]) for k in keys}
+    worst = max(young.values())
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="Decile strips of age at death for four groups: men and women on the
+         father's side and on the mother's side. All four distributions are nearly identical,
+         with medians of 59 to 60 and the middle fifth of each falling between about 54 and
+         65.">
+      {"".join(out)}
+    </svg>
+    <figcaption>Age at death, by side of the family and by sex. The pale band is the tenth to
+    ninetieth percentile, the darker one the middle fifth, the rule the median and the ring
+    the mean. <b>All four distributions are effectively the same</b> — every median between
+    59 and 60, and no pair of means more than a year apart. Fewer than {worst:.0f}% of these
+    people died before twenty, which is not a fact about the past so much as a fact about
+    pedigrees.</figcaption>
+  </figure>"""
+
+
 CHARTS = {"lives": lives_chart, "occupancy": occupancy_chart, "flow": flow_map,
+          "lifespan": lifespan_chart,
           "atlas": atlas_chart, "surnames": surnames_chart,
           "crossings_side": crossings_by_side, "ancestry": ancestry_chart,
           "coverage": coverage_chart, "composition": composition_chart}
