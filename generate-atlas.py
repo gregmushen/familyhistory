@@ -1455,8 +1455,116 @@ def lifespan_chart(rows, sides):
   </figure>"""
 
 
+def century_chart(rows, sides):
+    """The same figure again, binned by the century a person was born in.
+
+    Side and sex are pooled here, and that is forced rather than chosen: split
+    four ways as well and the sixteenth century has three people on the
+    mother's side. Century is the only cut this cohort can carry twice.
+    """
+    # Same cohort as the figure above, so the two can be read against each
+    # other: clean dates, twelve generations, and a person who can be placed on
+    # one side of the family. Without the last condition the bins quietly pick
+    # up collateral relatives, including infants the other chart excludes.
+    dad, mom = sides
+    bins = collections.defaultdict(list)
+    for r in rows:
+        if "Living" in (r["lifespan"] or ""):
+            continue
+        age = clean_age(r)
+        if age is None:
+            continue
+        in_d, in_m = r["pid"] in dad, r["pid"] in mom
+        if not (in_d ^ in_m) or r.get("gender") not in ("MALE", "FEMALE"):
+            continue
+        born, _d = lifespan(r)
+        if not born:
+            continue
+        bins[(born // 100) * 100].append(age)
+
+    keys = [c for c in sorted(bins) if len(bins[c]) >= 15]
+    lo, hi = 10, 110
+    pad_l, pad_r, top, row_h = 190, 120, 96, 74
+    span = W - pad_l - pad_r
+    x = lambda a: pad_l + span * (min(max(a, lo), hi) - lo) / (hi - lo)
+    height = top + len(keys) * row_h + 76
+
+    out = []
+    for t in range(10, 111, 10):
+        out.append(f'<line x1="{x(t):.1f}" y1="{top-26}" x2="{x(t):.1f}" '
+                   f'y2="{top + len(keys)*row_h - 20:.1f}" stroke="var(--color-divider)" '
+                   f'stroke-width="{1 if t % 20 == 0 else 0.5}" opacity="0.7"/>')
+        out.append(f'<text x="{x(t):.1f}" y="{top-34}" text-anchor="middle" class="ax">{t}</text>')
+
+    for i, c in enumerate(keys):
+        v = bins[c]
+        y = top + i * row_h
+        colour = "var(--color-accent-700)"
+        mean, sd = statistics.mean(v), statistics.pstdev(v)
+        med, lo_v, hi_v = statistics.median(v), min(v), max(v)
+        out.append(f'<rect x="{x(mean-2*sd):.1f}" y="{y:.1f}" '
+                   f'width="{x(mean+2*sd)-x(mean-2*sd):.1f}" height="20" rx="3" '
+                   f'fill="{colour}" opacity="0.13"/>')
+        out.append(f'<rect x="{x(mean-sd):.1f}" y="{y:.1f}" '
+                   f'width="{x(mean+sd)-x(mean-sd):.1f}" height="20" rx="3" '
+                   f'fill="{colour}" opacity="0.34"/>')
+        out.append(f'<line x1="{x(med):.1f}" y1="{y-4:.0f}" x2="{x(med):.1f}" '
+                   f'y2="{y+24:.0f}" stroke="{colour}" stroke-width="2.4"/>')
+        out.append(f'<circle cx="{x(mean):.1f}" cy="{y+10:.0f}" r="3.4" fill="none" '
+                   f'stroke="{colour}" stroke-width="1.6"/>')
+        for val in (lo_v, hi_v):
+            out.append(f'<line x1="{x(val):.1f}" y1="{y+2:.0f}" x2="{x(val):.1f}" '
+                       f'y2="{y+18:.0f}" stroke="{colour}" stroke-width="1.5" opacity="0.9"/>')
+            out.append(f'<text x="{x(val):.1f}" y="{y-6:.0f}" text-anchor="middle" '
+                       f'class="ls-x">{val}</text>')
+        out.append(f'<text x="{pad_l-16}" y="{y+8:.0f}" text-anchor="end" class="ls-lab">'
+                   f'born in the {c}s</text>')
+        out.append(f'<text x="{pad_l-16}" y="{y+22:.0f}" text-anchor="end" class="ls-sub">'
+                   f'{len(v):,} people</text>')
+        out.append(f'<text x="{W-pad_r+14}" y="{y+4:.0f}" class="ls-sub">median '
+                   f'<tspan class="ls-n">{med:.0f}</tspan></text>')
+        out.append(f'<text x="{W-pad_r+14}" y="{y+18:.0f}" class="ls-sub">SD '
+                   f'<tspan class="ls-n">{sd:.1f}</tspan></text>')
+
+    ky = top + len(keys) * row_h + 6
+    out.append(f'<rect x="{pad_l}" y="{ky}" width="26" height="11" rx="2" '
+               f'fill="var(--color-accent-700)" opacity="0.13"/>')
+    out.append(f'<text x="{pad_l+33}" y="{ky+10}" class="ls-sub">mean &#177; 2 SD</text>')
+    out.append(f'<rect x="{pad_l+140}" y="{ky}" width="26" height="11" rx="2" '
+               f'fill="var(--color-accent-700)" opacity="0.34"/>')
+    out.append(f'<text x="{pad_l+173}" y="{ky+10}" class="ls-sub">&#177; 1 SD</text>')
+    out.append(f'<line x1="{pad_l+242}" y1="{ky-2}" x2="{pad_l+242}" y2="{ky+13}" '
+               f'stroke="var(--color-accent-700)" stroke-width="2.4"/>')
+    out.append(f'<text x="{pad_l+250}" y="{ky+10}" class="ls-sub">median</text>')
+    out.append(f'<circle cx="{pad_l+320}" cy="{ky+5}" r="3.4" fill="none" '
+               f'stroke="var(--color-accent-700)" stroke-width="1.6"/>')
+    out.append(f'<text x="{pad_l+330}" y="{ky+10}" class="ls-sub">mean</text>')
+    out.append(f'<line x1="{pad_l+390}" y1="{ky-2}" x2="{pad_l+390}" y2="{ky+13}" '
+               f'stroke="var(--color-accent-700)" stroke-width="1.5" opacity="0.9"/>')
+    out.append(f'<text x="{pad_l+398}" y="{ky+10}" class="ls-sub">youngest &amp; oldest</text>')
+    out.append(f'<text x="{W/2:.0f}" y="{height-16}" text-anchor="middle" class="ls-sub">'
+               f'age at death, in years</text>')
+
+    first, last = bins[keys[0]], bins[keys[-1]]
+    rise = statistics.median(last) - statistics.median(first)
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="The same spread again, binned by birth century. Median age at death
+         rises across the bins from {statistics.median(first):.0f} for the {keys[0]}s to
+         {statistics.median(last):.0f} for the {keys[-1]}s, while the standard deviation
+         narrows.">
+      {"".join(out)}
+    </svg>
+    <figcaption>The same figure binned by the century a person was born in, with side and
+    sex pooled because splitting four ways as well leaves three people in some cells. The
+    median rises <b>{rise:.0f} years</b> across the bins and the spread tightens as it goes.
+    How much of that is longer life and how much is better paperwork is the question the
+    prose below tries to answer, and it does not fully succeed.</figcaption>
+  </figure>"""
+
+
 CHARTS = {"lives": lives_chart, "occupancy": occupancy_chart, "flow": flow_map,
-          "lifespan": lifespan_chart,
+          "lifespan": lifespan_chart, "century": century_chart,
           "atlas": atlas_chart, "surnames": surnames_chart,
           "crossings_side": crossings_by_side, "ancestry": ancestry_chart,
           "coverage": coverage_chart, "composition": composition_chart}
