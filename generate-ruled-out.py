@@ -96,6 +96,16 @@ def load():
         "ORDER BY section, finding_id"
     ):
         findings.setdefault(r["section"], []).append(dict(r))
+    # The render loop walks SECTIONS, so a finding filed under any other section
+    # is loaded here and then quietly never drawn. That is exactly how eleven
+    # findings went missing once: `section` is a ruled-out bucket, and they had
+    # been filed with index.html anchor names instead. Fail loudly.
+    unknown = set(findings) - {s[0] for s in SECTIONS}
+    if unknown:
+        raise SystemExit(
+            "unknown section(s) in fs_findings: " + ", ".join(sorted(unknown))
+            + "\nsection must be one of: " + ", ".join(s[0] for s in SECTIONS)
+            + " (or NULL for a finding that does not belong on ruled-out)")
     names = {r["pid"]: r["name"] for r in db.execute(
         "SELECT pid, name FROM fs_persons WHERE deleted=0")}
     srcs = {}
