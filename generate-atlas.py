@@ -839,11 +839,23 @@ AMERICA = ("United States", "Colonial America", "Massachusetts", "Connecticut",
            "Pennsylvania", "Virginia", "Maryland", "Ohio", "Plymouth Colony", "Canada",
            "British North America", "New Netherland", "Delaware", "Carolina", "Georgia")
 
-ORIGIN_NATIONS = [
-    ("England", ("England", "Wales", "Cornwall")),
-    ("Ulster & Ireland", ("Ireland", "Ulster", "Antrim", "Down", "Derry", "Londonderry",
-                          "Donegal", "Tyrone")),
-    ("Scotland", ("Scotland",)),
+ULSTER_COUNTIES = ("Antrim", "Down", "Derry", "Londonderry", "Donegal", "Tyrone",
+                   "Armagh", "Fermanagh", "Ulster")
+
+# Ireland-born ancestors carrying one of these names are grouped with Scotland.
+# Every Irish family in this record is an Ulster Scots one -- Lowland Presbyterians
+# planted in the north of Ireland in the 1600s, who then crossed again -- and the
+# surnames are Lowland Scots throughout. This is an interpretive call and the page
+# says so; the rule is here rather than buried so it can be argued with.
+ULSTER_SCOTS_NAMES = {
+    "Campbell", "Gilmore", "Gilmour", "Borland", "Boreland", "Ross", "Linton",
+    "Culbertson", "Gibson", "Jamison", "Jameson", "Mitchell", "Clark", "Clarke",
+    "Faulkner", "Gartley", "Barkley", "Templeton", "Wilson", "Craig", "Hamilton",
+    "Kerr", "Maxwell", "Sloan", "Rankin", "Blair", "Boyd", "Smith",
+}
+
+ORIGIN_GROUPS = [
+    ("England & Wales", ("England", "Wales", "Cornwall")),
     ("Germany & the Palatinate", ("Germany", "Pfalz", "Palatin", "Hesse", "Baden",
                                   "Wurttemberg", "Rhineland", "Prussia", "Bavaria", "Saxony")),
     ("Netherlands", ("Netherlands", "Holland", "Utrecht", "Zeeland", "Gelderland")),
@@ -858,9 +870,23 @@ def born_in_america(place):
     return bool(place) and any(k in place for k in AMERICA)
 
 
-def origin_nation(place):
-    return next((n for n, keys in ORIGIN_NATIONS if any(k in (place or "") for k in keys)),
-                None)
+def origin_group(person):
+    """Where a crossing ancestor came from, grouped by people rather than borders.
+
+    Scotland and Ulster are one band. The Ulster families in this record are
+    Lowland Scots planted in Ireland in the 1600s -- the page argues this at
+    length -- so splitting them from Scotland by a coastline would separate one
+    population into two. Ireland-born ancestors whose surname is not on the
+    Ulster Scots list stay separate.
+    """
+    place = person.get("birth_place") or ""
+    surname_last = (person.get("name") or "").split()[-1] if person.get("name") else ""
+    if "Scotland" in place or any(k in place for k in ULSTER_COUNTIES):
+        return "Scotland & Ulster"
+    if "Ireland" in place:
+        return ("Scotland & Ulster" if surname_last in ULSTER_SCOTS_NAMES
+                else "Ireland, other")
+    return next((n for n, keys in ORIGIN_GROUPS if any(k in place for k in keys)), None)
 
 
 def ancestry_weights(people):
@@ -929,7 +955,7 @@ def ancestry_weights(people):
                 place = by_pid.get(pid, {}).get("birth_place") if pid else None
                 if not place or born_in_america(place):
                     continue
-                nat = origin_nation(place)
+                nat = origin_group(by_pid.get(pid, {}))
                 if nat:
                     nation_share[nat] += weight.get(pid, 0.0)
                     nation_count[nat] += 1
@@ -948,7 +974,7 @@ def ancestry_chart(rows, sides):
     traced = sum(share.values()) + unknown
     tot_n = sum(count.values()) or 1
 
-    names = [n for n, _ in ORIGIN_NATIONS if count.get(n) or share.get(n)]
+    names = [n for n in set(list(count) + list(share)) if count.get(n) or share.get(n)]
     names.sort(key=lambda n: -share.get(n, 0.0))
 
     pad_l, pad_r, top, h = 250, 250, 96, 430
