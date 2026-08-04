@@ -983,91 +983,6 @@ def ancestry_weights(people):
     return share_by, count_by, stops, gap
 
 
-def ancestry_chart(rows, sides):
-    """Headcount of immigrants against expected share of DNA.
-
-    A slopegraph because the point is the reordering. Counting immigrants and
-    counting inheritance give almost opposite answers, and the lines cross.
-    """
-    raw, count, stops, gap = ancestry_weights(rows)
-    traced = sum(raw.values())
-    lost = sum(stops.values()) + gap
-    # Composition is a share of what the record can place, not of the whole
-    # pedigree. Mixing the two would put "stops in Pennsylvania" on the same
-    # axis as "England", and an absence of evidence is not an ancestry.
-    share = collections.Counter({k: v / traced for k, v in raw.items()})
-    tot_n = sum(count.values()) or 1
-
-    names = [n for n in set(list(count) + list(share)) if count.get(n) or share.get(n)]
-    names.sort(key=lambda n: -share.get(n, 0.0))
-
-    pad_l, pad_r, top, h = 250, 250, 96, 430
-    x1, x2 = pad_l, W - pad_r
-    lmax = max(count.values()) / tot_n
-    rmax = max(share.values())
-
-    def ly(n):
-        return top + h * (1 - (count.get(n, 0) / tot_n) / lmax)
-
-    def ry(n):
-        return top + h * (1 - share.get(n, 0.0) / rmax)
-
-    out = [f'<text x="{x1}" y="{top - 44}" text-anchor="end" class="an-hd">share of the '
-           f'{tot_n} immigrants</text>',
-           f'<text x="{x2}" y="{top - 44}" class="an-hd">share of the DNA</text>',
-           f'<line x1="{x1}" y1="{top - 24}" x2="{x1}" y2="{top + h + 10}" '
-           f'stroke="var(--color-divider)"/>',
-           f'<line x1="{x2}" y1="{top - 24}" x2="{x2}" y2="{top + h + 10}" '
-           f'stroke="var(--color-divider)"/>']
-
-    # de-overlap the labels on each side
-    def stack(fn):
-        pts = sorted(((fn(n), n) for n in names))
-        out2, prev = [], None
-        for y, n in pts:
-            yy = y if prev is None else max(y, prev + 17)
-            out2.append((n, y, yy)); prev = yy
-        return {n: (y, yy) for n, y, yy in out2}
-    L, R = stack(ly), stack(ry)
-
-    for n in names:
-        c, s = count.get(n, 0) / tot_n, share.get(n, 0.0)
-        rise = s > c
-        colour = "var(--color-accent-700)" if rise else "var(--color-neutral-700)"
-        out.append(f'<path d="M {x1} {L[n][0]:.1f} C {x1 + 120} {L[n][0]:.1f}, '
-                   f'{x2 - 120} {R[n][0]:.1f}, {x2} {R[n][0]:.1f}" fill="none" '
-                   f'stroke="{colour}" stroke-width="{1 + 9 * s:.2f}" opacity="0.45"/>')
-        out.append(f'<circle cx="{x1}" cy="{L[n][0]:.1f}" r="3.5" fill="{colour}"/>')
-        out.append(f'<circle cx="{x2}" cy="{R[n][0]:.1f}" r="3.5" fill="{colour}"/>')
-        out.append(f'<text x="{x1 - 12}" y="{L[n][1] + 4:.1f}" text-anchor="end" '
-                   f'class="an-lab">{n} <tspan class="an-n">{count.get(n,0)}</tspan> '
-                   f'<tspan class="an-pc">{100*c:.0f}%</tspan></text>')
-        out.append(f'<text x="{x2 + 12}" y="{R[n][1] + 4:.1f}" class="an-lab">'
-                   f'<tspan class="an-pc">{100*s:.1f}%</tspan> {n}</text>')
-
-    fy = top + h + 46
-    out.append(f'<text x="{W/2:.0f}" y="{fy}" text-anchor="middle" class="an-foot">'
-               f'shares of the {100*traced:.0f}% of this pedigree that reaches a known '
-               f'origin &#183; the other {100*lost:.0f}% stops before a coast</text>')
-    return f"""  <figure class="chart-fig">
-    <svg viewBox="0 0 {W} {fy + 26:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
-         aria-label="Slopegraph comparing each origin's share of immigrant ancestors on the
-         left with its expected share of inherited DNA on the right. England falls from
-         about 85 per cent of the immigrants to about a third of the DNA, while Ulster and
-         Ireland rise from 4 per cent to 22 and Scotland from 1.5 per cent to 13. The lines
-         cross.">
-      {"".join(out)}
-    </svg>
-    <figcaption>Left: each origin's share of the {tot_n} ancestors who crossed an ocean.
-    Right: its share of the inherited DNA, since an ancestor {chr(110)} generations back
-    contributes 1/2<tspan></tspan>&#8319; of it. Both columns are shares of what this record
-    can actually place — {100*traced:.0f}% of the pedigree; the missing {100*lost:.0f}% is
-    counted separately below rather than mixed in here. The lines cross because the English
-    arrived in the sixteen-hundreds and the Scots and Irish in the eighteen-hundreds, and
-    eight generations of halving is a factor of 256.</figcaption>
-  </figure>"""
-
-
 NEW_ENGLAND = ("Massachusetts", "Connecticut", "New Hampshire", "Vermont",
                "Rhode Island", "Maine")
 ULSTER_SURNAMES_US = {"Leard", "Gartley", "Campbell", "Gilmore", "Borland", "Boreland",
@@ -1154,6 +1069,98 @@ def gap_breakdown(rows):
             unclear[why] += v
     unclear["one parent never recorded"] += gap
     return probable, unclear
+
+
+def ancestry_chart(rows, sides):
+    """Pareto: share of DNA per origin as bars, cumulative share as a line.
+
+    This replaced a slopegraph that could not be read. Nine origins where two
+    of them carry ninety per cent means seven labels fight for the bottom inch
+    of the axis, and no amount of nudging fixes that -- the shape was wrong for
+    the data. Bars sort the problem out, and the cumulative line on its own
+    axis is what actually answers the question the figure is for: how few
+    origins do you need before you have accounted for nearly all of it.
+    """
+    raw, count, stops, gap = ancestry_weights(rows)
+    traced = sum(raw.values())
+    parts = [(k, v / traced, count[k]) for k, v in raw.most_common()]
+
+    pad_l, pad_r, top, h = 66, 74, 66, 330
+    span = W - pad_l - pad_r
+    n = len(parts)
+    slot = span / n
+    bw = min(slot * 0.52, 64)
+    y0 = top + h
+    bar_max = 0.50            # left axis, share of DNA per origin
+    by = lambda v: y0 - h * min(v, bar_max) / bar_max
+    cy = lambda v: y0 - h * v          # right axis, cumulative 0-100%
+
+    out = []
+    for t in range(0, 51, 10):
+        y = by(t / 100)
+        out.append(f'<line x1="{pad_l}" y1="{y:.1f}" x2="{W-pad_r}" y2="{y:.1f}" '
+                   f'stroke="var(--color-divider)" stroke-width="0.75" opacity="0.6"/>')
+        out.append(f'<text x="{pad_l-10}" y="{y+4:.1f}" text-anchor="end" class="pa-ax">{t}%</text>')
+    for t in range(0, 101, 25):
+        out.append(f'<text x="{W-pad_r+10}" y="{cy(t/100)+4:.1f}" class="pa-ax2">{t}%</text>')
+    out.append(f'<text x="{pad_l-10}" y="{top-22}" text-anchor="end" class="pa-hd">share of DNA</text>')
+    out.append(f'<text x="{W-pad_r+10}" y="{top-22}" class="pa-hd2">cumulative</text>')
+
+    run, pts = 0.0, []
+    for i, (name, frac, crossings) in enumerate(parts):
+        x = pad_l + slot * i + (slot - bw) / 2
+        out.append(f'<rect x="{x:.1f}" y="{by(frac):.1f}" width="{bw:.1f}" '
+                   f'height="{y0 - by(frac):.1f}" rx="2" fill="var(--color-accent-700)" '
+                   f'opacity="0.8"/>')
+        out.append(f'<text x="{x + bw/2:.1f}" y="{by(frac)-8:.1f}" text-anchor="middle" '
+                   f'class="pa-val">{frac*100:.1f}%</text>')
+        run += frac
+        pts.append((pad_l + slot * i + slot / 2, cy(run), run))
+        # origin name, wrapped, under the axis
+        words, ls, cur = name.split(), [], ""
+        for wd in words:
+            if len(cur) + len(wd) > 13:
+                ls.append(cur); cur = wd
+            else:
+                cur = (cur + " " + wd).strip()
+        ls.append(cur)
+        for j, ln in enumerate(ls[:2]):
+            out.append(f'<text x="{pad_l + slot*i + slot/2:.1f}" y="{y0 + 18 + j*12:.0f}" '
+                       f'text-anchor="middle" class="pa-name">{ln}</text>')
+        out.append(f'<text x="{pad_l + slot*i + slot/2:.1f}" y="{y0 + 18 + len(ls[:2])*12 + 2:.0f}" '
+                   f'text-anchor="middle" class="pa-n">{crossings} '
+                   f'{"crossing" if crossings == 1 else "crossings"}</text>')
+
+    path = " ".join(("M" if i == 0 else "L") + f" {x:.1f} {y:.1f}" for i, (x, y, _r) in enumerate(pts))
+    out.append(f'<path d="{path}" fill="none" stroke="var(--color-neutral-800)" '
+               f'stroke-width="1.8" opacity="0.75"/>')
+    for i, (x, y, r) in enumerate(pts):
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.2" fill="var(--color-neutral-800)"/>')
+        if i < 3 or i == len(pts) - 1:
+            out.append(f'<text x="{x:.1f}" y="{y-10:.1f}" text-anchor="middle" '
+                       f'class="pa-cum">{r*100:.0f}%</text>')
+    out.append(f'<line x1="{pad_l}" y1="{y0}" x2="{W-pad_r}" y2="{y0}" '
+               f'stroke="var(--color-text)" stroke-width="1"/>')
+
+    two = (parts[0][1] + parts[1][1]) * 100
+    height = y0 + 74
+    return f"""  <figure class="chart-fig">
+    <svg viewBox="0 0 {W} {height:.0f}" role="img" preserveAspectRatio="xMidYMid meet"
+         aria-label="Pareto chart. Bars give each origin's share of the inherited DNA on the
+         left axis, and a line gives the running cumulative total on the right axis. England
+         and Wales is 47.3 per cent and Scotland and Ulster 44.8, so the line reaches
+         {two:.0f} per cent after two bars and is effectively flat thereafter. The crossing
+         counts beneath the bars run the other way: 305 people for the first bar and 14 for
+         the second.">
+      {"".join(out)}
+    </svg>
+    <figcaption>Each origin's share of the inherited DNA (bars, left axis) and the running
+    total (line, right axis), for the {traced*100:.0f}% of this pedigree that reaches a known
+    origin. <b>Two origins are {two:.0f}% of it</b> and the line is flat after that. Read the
+    crossing counts under the bars and the point of the whole figure appears: the first bar
+    took <b>305 people</b> and the second took <b>14</b>.</figcaption>
+  </figure>"""
+
 
 
 def coverage_chart(rows, sides):
@@ -1365,18 +1372,14 @@ def lifespan_chart(rows, sides):
 
     keys = [(s, g) for s in ("father's side", "mother's side") for g in ("men", "women")]
     keys = [k for k in keys if len(groups.get(k, [])) >= 40]
-    lo, hi = 15, 105
+    lo, hi = 10, 110
     pad_l, pad_r, top, row_h = 190, 120, 96, 74
     span = W - pad_l - pad_r
     x = lambda a: pad_l + span * (min(max(a, lo), hi) - lo) / (hi - lo)
     height = top + len(keys) * row_h + 76
 
-    def dec(v):
-        v = sorted(v)
-        return [v[min(int(len(v) * i / 10), len(v) - 1)] for i in range(1, 10)]
-
     out = []
-    for t in range(20, 106, 10):
+    for t in range(10, 111, 10):
         out.append(f'<line x1="{x(t):.1f}" y1="{top-26}" x2="{x(t):.1f}" '
                    f'y2="{top + len(keys)*row_h - 20:.1f}" stroke="var(--color-divider)" '
                    f'stroke-width="{1 if t % 20 == 0 else 0.5}" opacity="0.7"/>')
@@ -1384,44 +1387,51 @@ def lifespan_chart(rows, sides):
 
     for i, k in enumerate(keys):
         v = groups[k]
-        d = dec(v)
         y = top + i * row_h
         colour = ("var(--color-accent-700)" if k[0].startswith("father")
                   else "var(--color-neutral-800)")
-        out.append(f'<rect x="{x(d[0]):.1f}" y="{y:.1f}" width="{x(d[8])-x(d[0]):.1f}" '
-                   f'height="20" rx="3" fill="{colour}" opacity="0.14"/>')
-        out.append(f'<rect x="{x(d[2]):.1f}" y="{y:.1f}" width="{x(d[6])-x(d[2]):.1f}" '
-                   f'height="20" rx="3" fill="{colour}" opacity="0.3"/>')
-        out.append(f'<rect x="{x(d[3]):.1f}" y="{y:.1f}" width="{x(d[5])-x(d[3]):.1f}" '
-                   f'height="20" rx="2" fill="{colour}" opacity="0.45"/>')
-        med = statistics.median(v)
+        mean, sd = statistics.mean(v), statistics.pstdev(v)
+        med, lo_v, hi_v = statistics.median(v), min(v), max(v)
+        out.append(f'<rect x="{x(mean-2*sd):.1f}" y="{y:.1f}" '
+                   f'width="{x(mean+2*sd)-x(mean-2*sd):.1f}" height="20" rx="3" '
+                   f'fill="{colour}" opacity="0.13"/>')
+        out.append(f'<rect x="{x(mean-sd):.1f}" y="{y:.1f}" '
+                   f'width="{x(mean+sd)-x(mean-sd):.1f}" height="20" rx="3" '
+                   f'fill="{colour}" opacity="0.34"/>')
         out.append(f'<line x1="{x(med):.1f}" y1="{y-4:.0f}" x2="{x(med):.1f}" '
                    f'y2="{y+24:.0f}" stroke="{colour}" stroke-width="2.4"/>')
-        mean = statistics.mean(v)
         out.append(f'<circle cx="{x(mean):.1f}" cy="{y+10:.0f}" r="3.4" fill="none" '
                    f'stroke="{colour}" stroke-width="1.6"/>')
+        for val in (lo_v, hi_v):
+            out.append(f'<line x1="{x(val):.1f}" y1="{y+2:.0f}" x2="{x(val):.1f}" '
+                       f'y2="{y+18:.0f}" stroke="{colour}" stroke-width="1.5" opacity="0.9"/>')
+            out.append(f'<text x="{x(val):.1f}" y="{y-6:.0f}" text-anchor="middle" '
+                       f'class="ls-x">{val}</text>')
         out.append(f'<text x="{pad_l-16}" y="{y+8:.0f}" text-anchor="end" class="ls-lab">'
                    f'{k[0]} &#183; {k[1]}</text>')
         out.append(f'<text x="{pad_l-16}" y="{y+22:.0f}" text-anchor="end" class="ls-sub">'
                    f'{len(v):,} people</text>')
-        out.append(f'<text x="{W-pad_r+14}" y="{y+8:.0f}" class="ls-sub">median '
+        out.append(f'<text x="{W-pad_r+14}" y="{y+4:.0f}" class="ls-sub">median '
                    f'<tspan class="ls-n">{med:.0f}</tspan></text>')
-        out.append(f'<text x="{W-pad_r+14}" y="{y+22:.0f}" class="ls-sub">mean '
-                   f'<tspan class="ls-n">{mean:.1f}</tspan></text>')
+        out.append(f'<text x="{W-pad_r+14}" y="{y+18:.0f}" class="ls-sub">SD '
+                   f'<tspan class="ls-n">{sd:.1f}</tspan></text>')
 
     ky = top + len(keys) * row_h + 6
     out.append(f'<rect x="{pad_l}" y="{ky}" width="26" height="11" rx="2" '
                f'fill="var(--color-neutral-800)" opacity="0.14"/>')
-    out.append(f'<text x="{pad_l+33}" y="{ky+10}" class="ls-sub">10th&#8211;90th percentile</text>')
-    out.append(f'<rect x="{pad_l+180}" y="{ky}" width="26" height="11" rx="2" '
-               f'fill="var(--color-neutral-800)" opacity="0.45"/>')
-    out.append(f'<text x="{pad_l+213}" y="{ky+10}" class="ls-sub">40th&#8211;60th</text>')
-    out.append(f'<line x1="{pad_l+310}" y1="{ky-2}" x2="{pad_l+310}" y2="{ky+13}" '
+    out.append(f'<text x="{pad_l+33}" y="{ky+10}" class="ls-sub">mean &#177; 2 SD</text>')
+    out.append(f'<rect x="{pad_l+140}" y="{ky}" width="26" height="11" rx="2" '
+               f'fill="var(--color-neutral-800)" opacity="0.34"/>')
+    out.append(f'<text x="{pad_l+173}" y="{ky+10}" class="ls-sub">&#177; 1 SD</text>')
+    out.append(f'<line x1="{pad_l+242}" y1="{ky-2}" x2="{pad_l+242}" y2="{ky+13}" '
                f'stroke="var(--color-neutral-800)" stroke-width="2.4"/>')
-    out.append(f'<text x="{pad_l+318}" y="{ky+10}" class="ls-sub">median</text>')
-    out.append(f'<circle cx="{pad_l+392}" cy="{ky+5}" r="3.4" fill="none" '
+    out.append(f'<text x="{pad_l+250}" y="{ky+10}" class="ls-sub">median</text>')
+    out.append(f'<circle cx="{pad_l+320}" cy="{ky+5}" r="3.4" fill="none" '
                f'stroke="var(--color-neutral-800)" stroke-width="1.6"/>')
-    out.append(f'<text x="{pad_l+402}" y="{ky+10}" class="ls-sub">mean</text>')
+    out.append(f'<text x="{pad_l+330}" y="{ky+10}" class="ls-sub">mean</text>')
+    out.append(f'<line x1="{pad_l+390}" y1="{ky-2}" x2="{pad_l+390}" y2="{ky+13}" '
+               f'stroke="var(--color-neutral-800)" stroke-width="1.5" opacity="0.9"/>')
+    out.append(f'<text x="{pad_l+398}" y="{ky+10}" class="ls-sub">youngest &amp; oldest</text>')
     out.append(f'<text x="{W/2:.0f}" y="{height-16}" text-anchor="middle" class="ls-sub">'
                f'age at death, in years</text>')
 
